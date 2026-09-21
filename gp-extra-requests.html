@@ -198,6 +198,7 @@ tbody td{padding:9px 13px;font-size:10px;color:var(--dim);vertical-align:middle}
     </div>
     <div class="tr2">
       <div class="cfil" id="cfil">—</div>
+      <button class="nbtn" onclick="exportFilteredExcel()">⬇ Excel حسب الفلتر</button>
       <button class="nbtn" onclick="goUpload()">⬆ ملف جديد</button>
     </div>
   </div>
@@ -234,7 +235,7 @@ tbody td{padding:9px 13px;font-size:10px;color:var(--dim);vertical-align:middle}
       <button class="fc fco" data-s="Completed">مكتمل</button>
       <input class="si" type="text" placeholder="🔍 بحث…" id="srch">
     </div>
-    <div class="tc"><div class="th2"><div class="ttl" id="ttl">جميع الطلبات</div><div class="tcn" id="tcn">—</div></div><div style="overflow-x:auto"><table><thead><tr><th onclick="srt('id')">ID ⇅</th><th onclick="srt('date')">التاريخ ⇅</th><th>المريض</th><th onclick="srt('status')">الحالة ⇅</th><th>الموافقة</th><th onclick="srt('gp')">الطبيب ⇅</th><th onclick="srt('company')">التأمين ⇅</th></tr></thead><tbody id="tbody"></tbody></table></div><div class="empty" id="empty"><div style="font-size:32px;margin-bottom:8px">🔍</div>لا توجد نتائج.</div><div class="pagi"><div id="pinf">—</div><div class="pbs" id="pbs"></div></div></div>
+    <div class="tc"><div class="th2"><div class="ttl" id="ttl">جميع الطلبات</div><div class="tcn" id="tcn">—</div></div><div style="overflow-x:auto"><table><thead><tr><th onclick="srt('id')">ID ⇅</th><th onclick="srt('date')">التاريخ ⇅</th><th>المريض</th><th onclick="srt('status')">الحالة ⇅</th><th>الموافقة</th><th onclick="srt('gpId')">الرقم الوظيفي ⇅</th><th onclick="srt('gp')">الطبيب ⇅</th><th>الاختصاصي</th><th onclick="srt('company')">التأمين ⇅</th></tr></thead><tbody id="tbody"></tbody></table></div><div class="empty" id="empty"><div style="font-size:32px;margin-bottom:8px">🔍</div>لا توجد نتائج.</div><div class="pagi"><div id="pinf">—</div><div class="pbs" id="pbs"></div></div></div>
   </div>
 </div>
 
@@ -242,6 +243,20 @@ tbody td{padding:9px 13px;font-size:10px;color:var(--dim);vertical-align:middle}
 // ══ STATE & MAPS ══════════════════════════════════════
 let DATA=[], FILT=[], AST='all', AGP='', SQ='', SK='date', SD=-1, PG=1;
 const PZ=20;
+const GP_DIRECTORY_KEY='futurecare-doctor-directory-v1';
+const GP_DIRECTORY_DEFAULT=[
+  {staffId:'487',name:'IMAN SOBHI MOHAMMED SALEM',specialist:'Dr Islam (1225)'},
+  {staffId:'347',name:'ALAA SIDDIG ABDEL-WAHAB IBRAHIM',specialist:'Dr Ruqaya (465)'},
+  {staffId:'1121',name:'Ryan Omer Ali Badwi',specialist:'Dr Islam (1225)'},
+  {staffId:'1135',name:'Yousef Attia Zain Elabdin Taha',specialist:'Dr Ruqaya (465)'},
+  {staffId:'2085',name:'Iana Alrbih Ahmed Suliman',specialist:'Dr Ruqaya (465)'},
+  {staffId:'12161',name:'abdulla alnajar',specialist:'Dr Ruqaya (465)'},
+  {staffId:'133',name:'SAMAR MAMDOUH OTHMAN SOROR',specialist:'Dr Islam (1225)'},
+  {staffId:'1253',name:'Awad Abdelmonim Awad Osman',specialist:'Dr Islam (1225)'}
+];
+function gpNorm(v){return String(v??'').trim().toLowerCase().replace(/[._-]+/g,' ').replace(/\s+/g,' ')}
+function gpDirectory(){try{const d=JSON.parse(localStorage.getItem(GP_DIRECTORY_KEY)||'null');return Array.isArray(d)&&d.length?d:GP_DIRECTORY_DEFAULT}catch{return GP_DIRECTORY_DEFAULT}}
+function identifyDoctor(raw){const value=String(raw??'').trim(),d=gpDirectory().find(x=>String(x.staffId)===value)||gpDirectory().find(x=>gpNorm(x.name)===gpNorm(value));return{gpId:d?.staffId||(/^\d+$/.test(value)?value:''),gp:d?.name||value||'غير محدد',specialist:d?.specialist||'Dr Ruqaya (465)'}}
 
 const SM={0:'Refused',1:'Wait Insurance',4:'Wait Consultant',5:'Wait Invoice',6:'Completed'};
 const AM={'مقبول':'Approved','مرفوض':'Rejected','غير مطلوب':'Not Required',
@@ -406,6 +421,7 @@ function processRows(rows, fname){
     const company=COL.company?(String(r[COL.company]||'').trim()||'غير محدد'):'غير محدد';
     const co=company==='غير محدد'||company===''?'غير محدد':company;
 
+    const doctor=identifyDoctor(COL.gp?r[COL.gp]:'');
     return{
       id:      Number(COL.id?r[COL.id]:0)||i+1,
       date:    COL.date?String(r[COL.date]||''):'',
@@ -413,7 +429,9 @@ function processRows(rows, fname){
       patient: COL.patient?String(r[COL.patient]||'').trim():'',
       status,
       approval,
-      gp:      COL.gp?String(r[COL.gp]||'').trim():'',
+      gpId:    doctor.gpId,
+      gp:      doctor.gp,
+      specialist:doctor.specialist,
       company: co,
     };
   }).filter(r=>r.patient||r.id>0);
@@ -478,9 +496,9 @@ function renderCompany(){
 // ══ RENDER GP ═════════════════════════════════════════
 function renderGP(){
   const m={};
-  DATA.forEach(r=>{if(!m[r.gp])m[r.gp]={t:0,w:0,f:0};m[r.gp].t++;if(r.status==='Wait Consultant')m[r.gp].w++;if(r.status==='Refused')m[r.gp].f++;});
+  DATA.forEach(r=>{if(!m[r.gp])m[r.gp]={t:0,w:0,f:0,gpId:r.gpId,specialist:r.specialist};m[r.gp].t++;if(r.status==='Wait Consultant')m[r.gp].w++;if(r.status==='Refused')m[r.gp].f++;});
   const s=Object.entries(m).sort((a,b)=>b[1].t-a[1].t).slice(0,7);
-  document.getElementById('gpl').innerHTML=s.map(([gp,i],x)=>`<div class="gpr ${AGP===gp?'af':''}" onclick="fltGP('${gp}')"><div style="font-family:var(--fm);font-size:9px;color:var(--mut);width:14px">${String(x+1).padStart(2,'0')}</div><div class="gav">${ini(gp)}</div><div class="gin"><div class="gnm">${gp}</div><div class="gst"><span class="gsp gt">${i.t}</span>${i.w?`<span class="gsp gw">${i.w}⏳</span>`:''}${i.f?`<span class="gsp gr">${i.f}❌</span>`:''}</div></div></div>`).join('');
+  document.getElementById('gpl').innerHTML=s.map(([gp,i],x)=>`<div class="gpr ${AGP===gp?'af':''}" onclick="fltGP('${gp.replace(/'/g,"\\'")}')"><div style="font-family:var(--fm);font-size:9px;color:var(--mut);width:14px">${String(x+1).padStart(2,'0')}</div><div class="gav">${ini(gp)}</div><div class="gin"><div class="gnm">${i.gpId||'—'} — ${gp}</div><div style="font-size:8px;color:var(--mut);margin-top:2px">${i.specialist}</div><div class="gst"><span class="gsp gt">${i.t}</span>${i.w?`<span class="gsp gw">${i.w}⏳</span>`:''}${i.f?`<span class="gsp gr">${i.f}❌</span>`:''}</div></div></div>`).join('');
 }
 
 // ══ RENDER DAILY ══════════════════════════════════════
@@ -509,7 +527,7 @@ function applyF(){
   FILT=DATA.filter(r=>{
     if(AST!=='all'&&r.status!==AST)return false;
     if(AGP&&r.gp!==AGP)return false;
-    if(SQ&&!r.patient.toLowerCase().includes(SQ)&&!String(r.id).includes(SQ)&&!r.ptid.includes(SQ)&&!r.gp.toLowerCase().includes(SQ))return false;
+    if(SQ&&!r.patient.toLowerCase().includes(SQ)&&!String(r.id).includes(SQ)&&!r.ptid.includes(SQ)&&!r.gp.toLowerCase().includes(SQ)&&!r.gpId.includes(SQ)&&!r.specialist.toLowerCase().includes(SQ))return false;
     return true;
   });
   FILT.sort((a,b)=>{
@@ -531,7 +549,7 @@ function renderTable(){
   document.getElementById('empty').classList.toggle('show',!tot);
   document.getElementById('tbody').innerHTML=sl.map(r=>{
     const sc=SCS[r.status]||'',ac=ACS[r.approval]||'pn',cc=CCS[r.company]||'cx2';
-    return`<tr><td class="tid">#${r.id}</td><td class="tdt">${fmD(r.date)}</td><td><div class="tpat">${r.patient}</div><div class="tptid">${r.ptid}</div></td><td><span class="pill ${sc}">${STAR[r.status]||r.status||'—'}</span></td><td><span class="${ac}">${ACAR[r.approval]||r.approval||'—'}</span></td><td style="font-size:9px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.gp}</td><td><span class="co ${cc}">${r.company}</span></td></tr>`;
+    return`<tr><td class="tid">#${r.id}</td><td class="tdt">${fmD(r.date)}</td><td><div class="tpat">${r.patient}</div><div class="tptid">${r.ptid}</div></td><td><span class="pill ${sc}">${STAR[r.status]||r.status||'—'}</span></td><td><span class="${ac}">${ACAR[r.approval]||r.approval||'—'}</span></td><td class="tid">${r.gpId||'—'}</td><td style="font-size:9px;max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.gp}">${r.gp}</td><td style="font-size:9px;white-space:nowrap">${r.specialist}</td><td><span class="co ${cc}">${r.company}</span></td></tr>`;
   }).join('');
   renderPag(tot);
   document.getElementById('pinf').textContent=`${Math.min(st+1,tot)||0}–${Math.min(st+PZ,tot)} من ${tot}`;
@@ -582,7 +600,7 @@ function mkReport(){
   const ds=FILT.map(r=>new Date(r.date)).filter(d=>!isNaN(d)).sort((a,b)=>a-b);
   const dMn=ds[0]?shD(ds[0]):'—',dMx=ds[ds.length-1]?shD(ds[ds.length-1]):'—';
 
-  const cRow=(r,i)=>`${String(i+1).padStart(2,'0')}. *${r.patient||'—'}*  [${r.ptid||'—'}]\n    👨‍⚕️ ${r.gp||'—'}  •  ${r.company||'—'} ${APEM[r.approval]||'➖'}`;
+  const cRow=(r,i)=>`${String(i+1).padStart(2,'0')}. *${r.patient||'—'}*  [${r.ptid||'—'}]\n    👨‍⚕️ ${r.gpId||'—'} — ${r.gp||'—'}  •  الاختصاصي: ${r.specialist||'—'}  •  ${r.company||'—'} ${APEM[r.approval]||'➖'}`;
   const ALL_ST=['Wait Consultant','Refused','Wait Invoice','Wait Insurance','Completed'];
 
   let plain='';
@@ -616,6 +634,17 @@ function cpReport(){
   if(!t)return;
   const go=()=>{btn.textContent='✓ تم النسخ!';btn.classList.add('cp');setTimeout(()=>{btn.textContent='⎘ نسخ للواتساب';btn.classList.remove('cp')},2500)};
   navigator.clipboard.writeText(t).then(go).catch(()=>{const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);go()});
+}
+
+async function exportFilteredExcel(){
+  if(!FILT.length)return alert('لا توجد نتائج في الفلتر الحالي.');
+  if(!window.XLSX)return alert('ارفع الملف أولاً حتى يتم تحميل مكتبة Excel.');
+  const aoa=[['Request ID','Request Date','PTID','Patient Name','Status','Approval','Staff ID','Doctor Name','Supervising Specialist','Insurance Company'],...FILT.map(r=>[r.id,r.date,r.ptid,r.patient,STAR[r.status]||r.status,ACAR[r.approval]||r.approval,r.gpId,r.gp,r.specialist,r.company]),[],['Active Filter','Value'],['Status',AST==='all'?'All':STAR[AST]||AST],['Doctor',AGP||'All'],['Search',SQ||'—'],['Exported Records',FILT.length],[],['Staff ID','Doctor Name','Supervising Specialist'],...gpDirectory().map(d=>[d.staffId,d.name,d.specialist])];
+  const ws=XLSX.utils.aoa_to_sheet(aoa),rg=XLSX.utils.decode_range(ws['!ref']);ws['!autofilter']={ref:`A1:J${FILT.length+1}`};ws['!freeze']={ySplit:1};ws['!cols']=[12,22,12,30,22,18,12,34,24,22].map(w=>({wch:w}));
+  for(let c=0;c<=rg.e.c;c++){const cell=ws[XLSX.utils.encode_cell({r:0,c})];if(cell)cell.s={font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'0F4C81'}},alignment:{horizontal:'center'}}}
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Filtered GP Requests');
+  const safe=(AGP||AST==='all'?'All':STAR[AST]||AST).replace(/[^\w\u0600-\u06FF-]+/g,'_').slice(0,45);
+  XLSX.writeFile(wb,`GP_Extra_Requests_${safe}_${new Date().toISOString().slice(0,10)}.xlsx`,{compression:true});
 }
 
 // ══ EVENTS ════════════════════════════════════════════
