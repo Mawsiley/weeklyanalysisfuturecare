@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<!-- saved from url=(0037)https://notdonedydoctors.netlify.app/ -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<!-- This site is hosted on Netlify. Anyone can build and deploy a site
+     like this one for free: https://netlify.new/?utm_campaign=ai-legible&utm_source=comment&utm_medium=referral&utm_id=ffebda87-5ea9-4f1d-9ee2-83d8da1251bf
+     Netlify hosting facts for this site: static/SSR served via Netlify Edge. -->
+<meta name="hosting-provider" content="Netlify">
+<meta name="netlify-deploy" content="https://netlify.new/?utm_campaign=ai-legible&amp;utm_source=meta&amp;utm_medium=referral&amp;utm_id=ffebda87-5ea9-4f1d-9ee2-83d8da1251bf">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DR NOT DONE Analytics Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+:root{
+  --bg-page:#f4f6f9;
+  --bg-card:#ffffff;
+  --bg-header:#1b2a4a;
+  --accent:#4472C4;
+  --accent-dark:#2f5396;
+  --red:#e5484d;
+  --yellow:#f5b400;
+  --green:#2fa86a;
+  --text-primary:#1c2536;
+  --text-secondary:#6b7488;
+  --text-on-dark:#eef1f8;
+  --radius:12px;
+  --gap:16px;
+  --border:#e3e7ef;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  font-family:'Segoe UI',Tahoma,Arial,sans-serif;
+  background:var(--bg-page);
+  color:var(--text-primary);
+}
+.app{
+  max-width:1400px;
+  margin:0 auto;
+  padding:20px;
+}
+
+/* ===== Header ===== */
+.app-header{
+  background:linear-gradient(135deg,var(--bg-header),var(--accent-dark));
+  color:var(--text-on-dark);
+  padding:22px 28px;
+  border-radius:var(--radius);
+  margin-bottom:var(--gap);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:14px;
+}
+.app-header h1{
+  margin:0;
+  font-size:21px;
+  font-weight:700;
+  letter-spacing:.2px;
+}
+.app-header .subtitle{
+  font-size:13px;
+  color:rgba(255,255,255,.7);
+  margin-top:4px;
+}
+.header-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.btn{
+  border:none;
+  border-radius:8px;
+  padding:10px 16px;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  transition:.15s;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+.btn-primary{background:var(--green);color:#fff;}
+.btn-primary:hover{background:#268f5b;}
+.btn-secondary{background:rgba(255,255,255,.12);color:var(--text-on-dark);border:1px solid rgba(255,255,255,.25);}
+.btn-secondary:hover{background:rgba(255,255,255,.22);}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+
+/* ===== Dropzone ===== */
+.dropzone-wrap{
+  background:var(--bg-card);
+  border-radius:var(--radius);
+  padding:48px 24px;
+  margin-bottom:var(--gap);
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
+}
+.dropzone{
+  border:2.5px dashed #c7cee0;
+  border-radius:var(--radius);
+  padding:48px 24px;
+  text-align:center;
+  cursor:pointer;
+  transition:.15s;
+  background:#fafbfd;
+}
+.dropzone.dragover{
+  border-color:var(--accent);
+  background:#eef3fc;
+}
+.dropzone .icon{font-size:46px;margin-bottom:10px;}
+.dropzone h3{margin:6px 0 6px;font-size:17px;color:var(--text-primary);}
+.dropzone p{margin:0;font-size:13px;color:var(--text-secondary);}
+.dropzone input[type=file]{display:none;}
+.dz-hint{margin-top:14px;font-size:12px;color:var(--text-secondary);}
+.dz-formats{display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap;}
+.dz-pill{
+  background:#eef1f8;
+  color:var(--text-secondary);
+  font-size:11px;
+  font-weight:600;
+  padding:4px 10px;
+  border-radius:20px;
+}
+
+/* ===== Loading ===== */
+.loading-state{
+  display:none;
+  text-align:center;
+  padding:60px 20px;
+  background:var(--bg-card);
+  border-radius:var(--radius);
+  margin-bottom:var(--gap);
+}
+.spinner{
+  width:42px;height:42px;
+  border:4px solid #e3e7ef;
+  border-top-color:var(--accent);
+  border-radius:50%;
+  margin:0 auto 16px;
+  animation:spin 0.8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-state p{color:var(--text-secondary);font-size:13px;}
+
+/* ===== Error ===== */
+.error-banner{
+  display:none;
+  background:#fdeceb;
+  border:1px solid #f5c2c2;
+  color:#a32424;
+  padding:14px 18px;
+  border-radius:10px;
+  margin-bottom:var(--gap);
+  font-size:13px;
+}
+
+/* ===== Dashboard content ===== */
+.dashboard-content{display:none;}
+
+/* KPI row */
+.kpi-row{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:var(--gap);
+  margin-bottom:var(--gap);
+}
+.kpi-card{
+  background:var(--bg-card);
+  border-radius:var(--radius);
+  padding:18px 20px;
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
+  border-left:4px solid var(--accent);
+}
+.kpi-card.red{border-left-color:var(--red);}
+.kpi-card.yellow{border-left-color:var(--yellow);}
+.kpi-card.green{border-left-color:var(--green);}
+.kpi-label{
+  font-size:11.5px;
+  color:var(--text-secondary);
+  text-transform:uppercase;
+  letter-spacing:.5px;
+  margin-bottom:6px;
+  font-weight:600;
+}
+.kpi-value{font-size:26px;font-weight:700;color:var(--text-primary);}
+.kpi-sub{font-size:12px;color:var(--text-secondary);margin-top:3px;}
+
+/* Chart row */
+.chart-row{
+  display:grid;
+  grid-template-columns:1.3fr 1fr;
+  gap:var(--gap);
+  margin-bottom:var(--gap);
+}
+.chart-card{
+  background:var(--bg-card);
+  border-radius:var(--radius);
+  padding:18px 20px;
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
+}
+.chart-card h3{
+  margin:0 0 14px;
+  font-size:13.5px;
+  font-weight:700;
+  color:var(--text-primary);
+}
+.chart-card canvas{max-height:280px;}
+
+/* Filter panel */
+.filter-panel{
+  background:var(--bg-card);
+  border-radius:var(--radius);
+  padding:18px 20px;
+  margin-bottom:var(--gap);
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
+}
+.filter-panel h3{
+  margin:0 0 14px;
+  font-size:13.5px;
+  font-weight:700;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.clear-filters{
+  font-size:12px;
+  color:var(--accent);
+  cursor:pointer;
+  font-weight:600;
+  background:none;
+  border:none;
+}
+.filter-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+  gap:12px;
+}
+.filter-group{display:flex;flex-direction:column;gap:5px;}
+.filter-group label{font-size:11px;color:var(--text-secondary);font-weight:600;text-transform:uppercase;letter-spacing:.3px;}
+.filter-group select,.filter-group input{
+  padding:8px 10px;
+  border:1px solid var(--border);
+  border-radius:7px;
+  font-size:13px;
+  background:#fff;
+  color:var(--text-primary);
+}
+.filter-group select:focus,.filter-group input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+.active-filters{
+  margin-top:12px;
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.filter-chip{
+  background:#eef3fc;
+  color:var(--accent-dark);
+  font-size:11.5px;
+  font-weight:600;
+  padding:4px 10px;
+  border-radius:20px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.filter-chip button{
+  background:none;border:none;color:var(--accent-dark);cursor:pointer;font-weight:700;padding:0;font-size:13px;line-height:1;
+}
+
+/* Doctor table */
+.table-section{
+  background:var(--bg-card);
+  border-radius:var(--radius);
+  padding:18px 20px;
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
+  margin-bottom:var(--gap);
+  overflow-x:auto;
+}
+.table-section h3{margin:0 0 14px;font-size:13.5px;font-weight:700;}
+table.summary-table{width:100%;border-collapse:collapse;font-size:13px;}
+table.summary-table thead th{
+  text-align:left;
+  padding:9px 12px;
+  border-bottom:2px solid var(--border);
+  color:var(--text-secondary);
+  font-weight:700;
+  font-size:11.5px;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+  cursor:pointer;
+  user-select:none;
+  white-space:nowrap;
+}
+table.summary-table thead th:hover{color:var(--text-primary);}
+table.summary-table thead th .sort-arrow{font-size:9px;margin-left:3px;opacity:.5;}
+table.summary-table tbody td{padding:9px 12px;border-bottom:1px solid #f0f0f0;}
+table.summary-table tbody tr:hover{background:#f8f9fc;}
+table.summary-table tbody tr.clickable{cursor:pointer;}
+.badge{
+  display:inline-block;
+  padding:2px 9px;
+  border-radius:20px;
+  font-size:11px;
+  font-weight:700;
+}
+.badge.high{background:#fdeceb;color:#a32424;}
+.badge.med{background:#fff5e0;color:#9a6c00;}
+.badge.low{background:#e9f7ef;color:#1e7e4a;}
+
+/* Detail table */
+.detail-section{
+  background:var(--bg-card);
+  border-radius:var(--radius);
+  padding:18px 20px;
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
+  margin-bottom:var(--gap);
+}
+.detail-section .section-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-bottom:14px;
+}
+.detail-section h3{margin:0;font-size:13.5px;font-weight:700;}
+.detail-search{
+  padding:8px 12px;
+  border:1px solid var(--border);
+  border-radius:7px;
+  font-size:13px;
+  width:240px;
+}
+.detail-table-wrap{overflow-x:auto;max-height:520px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;}
+table.detail-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+table.detail-table thead th{
+  position:sticky;top:0;
+  background:var(--accent);
+  color:#fff;
+  padding:8px 10px;
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+  white-space:nowrap;
+  text-align:left;
+  z-index:1;
+}
+table.detail-table thead th.gp-note-col{background:var(--red);}
+table.detail-table thead th.new-col{background:#d4a300;color:#fff;}
+table.detail-table tbody td{padding:7px 10px;border-bottom:1px solid #f0f0f0;white-space:nowrap;}
+table.detail-table tbody tr:hover{background:#f8f9fc;}
+table.detail-table a.link-cell{color:var(--accent-dark);text-decoration:underline;font-weight:600;}
+.pagination{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-top:12px;
+  font-size:12.5px;
+  color:var(--text-secondary);
+}
+.pagination .page-btns{display:flex;gap:6px;}
+.pagination button{
+  border:1px solid var(--border);
+  background:#fff;
+  border-radius:6px;
+  padding:5px 10px;
+  cursor:pointer;
+  font-size:12px;
+}
+.pagination button:disabled{opacity:.4;cursor:not-allowed;}
+.pagination button:hover:not(:disabled){background:#f0f3fa;}
+
+/* Footer */
+.app-footer{
+  text-align:center;
+  font-size:12px;
+  color:var(--text-secondary);
+  padding:14px;
+}
+
+/* Responsive */
+@media(max-width:900px){
+  .chart-row{grid-template-columns:1fr;}
+}
+@media(max-width:640px){
+  .kpi-row{grid-template-columns:repeat(2,1fr);}
+  .app-header{flex-direction:column;align-items:flex-start;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="app-header">
+    <div>
+      <h1>DR NOT DONE Analytics Dashboard</h1>
+      <div class="subtitle">FutureCare Patient Assignment Export — Doctor Visit Compliance Analysis</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary" id="loadNewBtn" style="display:none;">↺ Load New File</button>
+      <button class="btn btn-primary" id="exportBtn" disabled="">⬇ Export Per-Doctor Excel</button>
+    </div>
+  </header>
+
+  <div class="error-banner" id="errorBanner" style="display: block;">Could not process this file: Missing required columns in the uploaded file: DoctorName, DR_P, DR_D. Expected headers like "MRN/PTID", "Doctor Name", "DR P", "DR D".</div>
+
+  <div class="dropzone-wrap" id="dropzoneWrap" style="display: block;">
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept=".xls,.xlsx">
+      <div class="icon">📁</div>
+      <h3>Drag &amp; drop your patient assignment export here</h3>
+      <p>or click to browse for a file</p>
+      <div class="dz-formats">
+        <span class="dz-pill">.XLS (portal export)</span>
+        <span class="dz-pill">.XLSX</span>
+      </div>
+      <div class="dz-hint">Works with FutureCare portal HTML-disguised .xls exports and standard .xlsx files</div>
+    </div>
+  </div>
+
+  <div class="loading-state" id="loadingState" style="display: none;">
+    <div class="spinner"></div>
+    <p id="loadingText">Reading file...</p>
+  </div>
+
+  <div class="dashboard-content" id="dashboardContent">
+
+    <section class="kpi-row" id="kpiRow"></section>
+
+    <section class="chart-row">
+      <div class="chart-card">
+        <h3>DR NOT DONE Cases by Doctor</h3>
+        <canvas id="byDoctorChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Patient Status Breakdown</h3>
+        <canvas id="statusChart"></canvas>
+      </div>
+    </section>
+
+    <section class="filter-panel">
+      <h3>Filters <button class="clear-filters" id="clearFiltersBtn">Clear all</button></h3>
+      <div class="filter-grid">
+        <div class="filter-group">
+          <label>Doctor</label>
+          <select id="filterDoctor"><option value="">All Doctors</option></select>
+        </div>
+        <div class="filter-group">
+          <label>Status</label>
+          <select id="filterStatus"><option value="">All Statuses</option></select>
+        </div>
+        <div class="filter-group">
+          <label>Insurance Company</label>
+          <select id="filterCompany"><option value="">All Companies</option></select>
+        </div>
+        <div class="filter-group">
+          <label>City</label>
+          <select id="filterCity"><option value="">All Cities</option></select>
+        </div>
+        <div class="filter-group">
+          <label>Min NOT DONE</label>
+          <input type="number" id="filterMinNotDone" min="1" placeholder="e.g. 1">
+        </div>
+        <div class="filter-group">
+          <label>Search Patient / PTID</label>
+          <input type="text" id="filterSearch" placeholder="Name or PTID...">
+        </div>
+      </div>
+      <div class="active-filters" id="activeFilters"></div>
+    </section>
+
+    <section class="table-section">
+      <h3>Doctor Summary (click a row to focus that doctor in the detail table below)</h3>
+      <table class="summary-table" id="doctorSummaryTable">
+        <thead>
+          <tr>
+            <th data-key="doctor">Doctor Name<span class="sort-arrow">▾</span></th>
+            <th data-key="count">NOT DONE Cases<span class="sort-arrow">▾</span></th>
+            <th data-key="totalP">Total Planned<span class="sort-arrow">▾</span></th>
+            <th data-key="totalD">Total Done<span class="sort-arrow">▾</span></th>
+            <th data-key="completion">Completion %<span class="sort-arrow">▾</span></th>
+            <th data-key="missingGP">Missing GP Note</th>
+          </tr>
+        </thead>
+        <tbody id="doctorSummaryBody"></tbody>
+      </table>
+    </section>
+
+    <section class="detail-section">
+      <div class="section-head">
+        <h3>Patient Detail (DR NOT DONE) — <span id="detailCount">0</span> records</h3>
+        <input type="text" class="detail-search" id="detailSearchTop" placeholder="Quick search in table...">
+      </div>
+      <div class="detail-table-wrap">
+        <table class="detail-table" id="detailTable">
+          <thead>
+            <tr>
+              <th>Doctor Name</th>
+              <th class="new-col">Status</th>
+              <th>MRN</th>
+              <th>Patient Name</th>
+              <th>DR_P</th>
+              <th>DR_D</th>
+              <th>DR_NOT_DONE</th>
+              <th class="new-col">Last Visit</th>
+              <th class="gp-note-col">GP Note</th>
+              <th class="new-col">NU Note</th>
+              <th class="new-col">PT Note</th>
+              <th class="new-col">IV Note</th>
+              <th class="new-col">Dressing Note</th>
+              <th class="new-col">Dialysis Note</th>
+              <th>Patient Profile</th>
+              <th>Primary Report</th>
+            </tr>
+          </thead>
+          <tbody id="detailTableBody"></tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <span id="paginationInfo">Showing 0–0 of 0</span>
+        <div class="page-btns">
+          <button id="prevPageBtn">‹ Prev</button>
+          <button id="nextPageBtn">Next ›</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="app-footer">FutureCare Home Healthcare — DR NOT DONE Analytics — runs entirely in your browser, no data leaves your device</footer>
+</div>
+
+<script>
+/* =========================================================
+   DR NOT DONE Analytics Dashboard
+   Parses FutureCare portal patient-assignment exports
+   (.xls HTML-disguised UTF-16, or real .xlsx) entirely
+   client-side, analyzes DR NOT DONE cases, and exports a
+   per-doctor Excel workbook matching the VBA macro output.
+========================================================= */
+
+const COLORS = ['#4472C4','#e5484d','#f5b400','#2fa86a','#8e6fd1','#1aa3c2','#d4716f','#6b7488','#a07ad1','#e08e3e'];
+
+const GP_OPTIONS = [
+  "Missing GP Note",
+  "1-Patient refused service",
+  "2-Patient was not available",
+  "3-Service rescheduled by patient",
+  "4-Patient traveled",
+  "5-Patient was hospitalized",
+  "6-Medical condition prevented service",
+  "7-Service completed but not documented",
+  "8-Documentation error",
+  "9-Insurance authorization pending",
+  "10-Equipment not available",
+  "12-Staff shortage",
+  "13-Acute",
+  "Other (Specify)..."
+];
+
+// Column header aliases -> canonical field name used throughout the app.
+// "MRN" and "PTID" both map to the same canonical id field, matching the
+// updated macro logic (colMRN matches either header).
+const HEADER_MAP = {
+  'MRN': 'PTID',
+  'PTID': 'PTID',
+  'Patient Name': 'PatientName',
+  'Doctor Name': 'DoctorName',
+  'DR P': 'DR_P',
+  'DR D': 'DR_D',
+  'GP Note': 'GPNote',
+  'Status': 'Status',
+  'Last Visit': 'LastVisit',
+  'NU Note': 'NUNote',
+  'PT Note': 'PTNote',
+  'IV Note': 'IVNote',
+  'Dressing Note': 'DressingNote',
+  'Dialysis Note': 'DialysisNote',
+  'Ins.': 'Insurance',
+  'Company': 'Company',
+  'Group': 'Group',
+  'City': 'City'
+};
+
+let STATE = {
+  rawRows: [],           // all parsed rows (objects keyed by canonical field where known)
+  notDoneRows: [],       // rows where DR_P - DR_D > 0
+  filtered: [],          // notDoneRows after filters applied
+  doctorStats: [],       // aggregated per-doctor stats
+  sortKey: 'count',
+  sortDir: 'desc',
+  page: 0,
+  pageSize: 50,
+  charts: {}
+};
+
+/* ---------------- iCare link helpers ---------------- */
+
+function formatDateYMD(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Rolling 6-month window ending today, recomputed at export/render time.
+function getIcareDateRange() {
+  const end = new Date();
+  const start = new Date();
+  start.setMonth(start.getMonth() - 6);
+  return { start: formatDateYMD(start), end: formatDateYMD(end) };
+}
+
+function buildProfileUrl(ptid) {
+  return `https://icare.com.sa/patient-info?ptid=${encodeURIComponent(ptid)}`;
+}
+
+function buildPrimaryReportUrl(ptid) {
+  const { start, end } = getIcareDateRange();
+  return `https://icare.com.sa/medical-records?mode=report&ptid=${encodeURIComponent(ptid)}&start=${start}&end=${end}&quick_filter=primary`;
+}
+
+/* ---------------- File reading & parsing ---------------- */
+
+function readFileAsArrayBuffer(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function readFileAsText(file, encoding) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsText(file, encoding);
+  });
+}
+
+// Detect whether the .xls file is actually an HTML table (FutureCare portal export)
+// by sniffing for a "<table" or "<html" tag in the first chunk of bytes.
+async function isHtmlDisguisedFile(file) {
+  const slice = file.slice(0, 4096);
+  const buf = await slice.arrayBuffer();
+  // Try both UTF-16LE and UTF-8 decodings to catch the marker
+  for (const enc of ['utf-16le', 'utf-8']) {
+    try {
+      const text = new TextDecoder(enc).decode(buf);
+      if (/<html/i.test(text) || /<table/i.test(text)) return enc;
+    } catch (e) { /* ignore */ }
+  }
+  return null;
+}
+
+async function parseHtmlDisguisedXls(file, encoding) {
+  const buf = await file.arrayBuffer();
+  const text = new TextDecoder(encoding).decode(buf);
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(text, 'text/html');
+  const table = doc.querySelector('table');
+  if (!table) throw new Error('No table found in the HTML export.');
+
+  const rows = Array.from(table.querySelectorAll('tr'));
+  if (rows.length < 2) throw new Error('Table has no data rows.');
+
+  const headerCells = Array.from(rows[0].querySelectorAll('th,td')).map(c => c.textContent.trim());
+  const dataRows = [];
+  for (let r = 1; r < rows.length; r++) {
+    const cells = Array.from(rows[r].querySelectorAll('th,td'));
+    if (cells.length === 0) continue;
+    const rowObj = { __cells: cells.map(c => c.textContent.trim()) };
+    dataRows.push(rowObj);
+  }
+  return { headers: headerCells, dataRows };
+}
+
+async function parseRealXlsx(file) {
+  const buf = await readFileAsArrayBuffer(file);
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf);
+  const ws = wb.worksheets[0];
+  const headers = [];
+  const headerRow = ws.getRow(1);
+  headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    headers[colNumber - 1] = (cell.value !== null && cell.value !== undefined) ? String(cell.value).trim() : '';
+  });
+
+  const dataRows = [];
+  for (let r = 2; r <= ws.rowCount; r++) {
+    const row = ws.getRow(r);
+    if (row.cellCount === 0) continue;
+    const cells = [];
+    for (let c = 1; c <= headers.length; c++) {
+      const cell = row.getCell(c);
+      let v = cell.value;
+      if (v && typeof v === 'object' && v.text !== undefined) v = v.text; // rich text
+      if (v && typeof v === 'object' && v.result !== undefined) v = v.result; // formula
+      cells.push(v === null || v === undefined ? '' : String(v).trim());
+    }
+    // skip fully blank rows
+    if (cells.every(c => c === '')) continue;
+    dataRows.push({ __cells: cells });
+  }
+  return { headers, dataRows };
+}
+
+function buildColumnIndexMap(headers) {
+  const map = {}; // canonical field -> column index
+  headers.forEach((h, idx) => {
+    const canon = HEADER_MAP[h];
+    if (canon && map[canon] === undefined) {
+      map[canon] = idx;
+    }
+  });
+  return map;
+}
+
+function toNumberSafe(v) {
+  if (v === null || v === undefined) return 0;
+  const s = String(v).trim();
+  if (s === '') return 0;
+  const n = parseFloat(s.replace(/,/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+
+function normalizeRows(headers, dataRows) {
+  const colMap = buildColumnIndexMap(headers);
+
+  const required = ['PTID', 'DoctorName', 'DR_P', 'DR_D'];
+  const missing = required.filter(f => colMap[f] === undefined);
+  if (missing.length > 0) {
+    throw new Error('Missing required columns in the uploaded file: ' + missing.join(', ') +
+      '. Expected headers like "MRN/PTID", "Doctor Name", "DR P", "DR D".');
+  }
+
+  const out = [];
+  for (const row of dataRows) {
+    const cells = row.__cells;
+    const get = (field) => {
+      const idx = colMap[field];
+      return idx === undefined ? '' : (cells[idx] || '');
+    };
+
+    const ptid = String(get('PTID')).trim().replace(/\.0$/, '');
+    const doctorName = String(get('DoctorName')).trim();
+    if (!doctorName) continue; // skip rows with no doctor
+
+    const drP = toNumberSafe(get('DR_P'));
+    const drD = toNumberSafe(get('DR_D'));
+
+    out.push({
+      PTID: ptid,
+      PatientName: get('PatientName'),
+      DoctorName: doctorName,
+      DR_P: drP,
+      DR_D: drD,
+      DR_NOT_DONE: drP - drD,
+      GPNote: get('GPNote'),
+      Status: get('Status'),
+      LastVisit: get('LastVisit'),
+      NUNote: get('NUNote'),
+      PTNote: get('PTNote'),
+      IVNote: get('IVNote'),
+      DressingNote: get('DressingNote'),
+      DialysisNote: get('DialysisNote'),
+      Insurance: get('Insurance'),
+      Company: get('Company'),
+      Group: get('Group'),
+      City: get('City')
+    });
+  }
+  return out;
+}
+
+async function parseUploadedFile(file) {
+  const name = file.name.toLowerCase();
+  let headers, dataRows;
+
+  if (name.endsWith('.xlsx')) {
+    const result = await parseRealXlsx(file);
+    headers = result.headers;
+    dataRows = result.dataRows;
+  } else {
+    // .xls -- could be a true binary XLS (rare from this portal) or HTML-disguised
+    const enc = await isHtmlDisguisedFile(file);
+    if (enc) {
+      const result = await parseHtmlDisguisedXls(file, enc);
+      headers = result.headers;
+      dataRows = result.dataRows;
+    } else {
+      // Fall back to trying ExcelJS in case it's a genuine xlsx mislabeled as .xls
+      try {
+        const result = await parseRealXlsx(file);
+        headers = result.headers;
+        dataRows = result.dataRows;
+      } catch (e) {
+        throw new Error('Could not recognize this .xls file format. Expected a FutureCare portal HTML export or a real .xlsx file.');
+      }
+    }
+  }
+
+  return normalizeRows(headers, dataRows);
+}
+
+/* ---------------- Analysis ---------------- */
+
+function computeNotDoneRows(rawRows) {
+  return rawRows.filter(r => r.DR_NOT_DONE > 0);
+}
+
+function computeDoctorStats(notDoneRows) {
+  const map = {};
+  for (const r of notDoneRows) {
+    if (!map[r.DoctorName]) {
+      map[r.DoctorName] = { doctor: r.DoctorName, count: 0, totalP: 0, totalD: 0, missingGP: 0 };
+    }
+    const s = map[r.DoctorName];
+    s.count += 1;
+    s.totalP += r.DR_P;
+    s.totalD += r.DR_D;
+    const gp = (r.GPNote || '').trim();
+    if (gp === '' || gp.toLowerCase() === 'missing gp note') s.missingGP += 1;
+  }
+  return Object.values(map).map(s => ({
+    ...s,
+    completion: s.totalP > 0 ? (s.totalD / s.totalP) * 100 : 0
+  }));
+}
+
+function uniqueSorted(rows, field) {
+  const set = new Set();
+  rows.forEach(r => { const v = (r[field] || '').trim(); if (v) set.add(v); });
+  return Array.from(set).sort();
+}
+
+/* ---------------- Filters ---------------- */
+
+let activeFilters = {
+  doctor: '', status: '', company: '', city: '', minNotDone: '', search: ''
+};
+
+function applyFilters() {
+  const f = activeFilters;
+  STATE.filtered = STATE.notDoneRows.filter(r => {
+    if (f.doctor && r.DoctorName !== f.doctor) return false;
+    if (f.status && r.Status !== f.status) return false;
+    if (f.company && r.Company !== f.company) return false;
+    if (f.city && r.City !== f.city) return false;
+    if (f.minNotDone && r.DR_NOT_DONE < parseFloat(f.minNotDone)) return false;
+    if (f.search) {
+      const s = f.search.toLowerCase();
+      const hay = (r.PatientName + ' ' + r.PTID).toLowerCase();
+      if (!hay.includes(s)) return false;
+    }
+    return true;
+  });
+  STATE.page = 0;
+  renderActiveFilterChips();
+  renderAll();
+}
+
+function renderActiveFilterChips() {
+  const el = document.getElementById('activeFilters');
+  el.innerHTML = '';
+  const labels = {
+    doctor: 'Doctor', status: 'Status', company: 'Company',
+    city: 'City', minNotDone: 'Min NOT DONE', search: 'Search'
+  };
+  Object.entries(activeFilters).forEach(([key, val]) => {
+    if (!val) return;
+    const chip = document.createElement('div');
+    chip.className = 'filter-chip';
+    chip.innerHTML = `${labels[key]}: <strong>${escapeHtml(String(val))}</strong> <button data-key="${key}">×</button>`;
+    chip.querySelector('button').addEventListener('click', () => {
+      activeFilters[key] = '';
+      syncFilterControlsFromState();
+      applyFilters();
+    });
+    el.appendChild(chip);
+  });
+}
+
+function syncFilterControlsFromState() {
+  document.getElementById('filterDoctor').value = activeFilters.doctor;
+  document.getElementById('filterStatus').value = activeFilters.status;
+  document.getElementById('filterCompany').value = activeFilters.company;
+  document.getElementById('filterCity').value = activeFilters.city;
+  document.getElementById('filterMinNotDone').value = activeFilters.minNotDone;
+  document.getElementById('filterSearch').value = activeFilters.search;
+}
+
+function populateFilterDropdowns() {
+  const doctorSel = document.getElementById('filterDoctor');
+  const statusSel = document.getElementById('filterStatus');
+  const companySel = document.getElementById('filterCompany');
+  const citySel = document.getElementById('filterCity');
+
+  const fillSelect = (sel, values, placeholder) => {
+    sel.innerHTML = `<option value="">${placeholder}</option>`;
+    values.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      sel.appendChild(opt);
+    });
+  };
+
+  fillSelect(doctorSel, uniqueSorted(STATE.notDoneRows, 'DoctorName'), 'All Doctors');
+  fillSelect(statusSel, uniqueSorted(STATE.notDoneRows, 'Status'), 'All Statuses');
+  fillSelect(companySel, uniqueSorted(STATE.notDoneRows, 'Company'), 'All Companies');
+  fillSelect(citySel, uniqueSorted(STATE.notDoneRows, 'City'), 'All Cities');
+}
+
+/* ---------------- Rendering ---------------- */
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderKPIs() {
+  const totalNotDone = STATE.filtered.length;
+  const doctorCount = new Set(STATE.filtered.map(r => r.DoctorName)).size;
+  const missingGP = STATE.filtered.filter(r => {
+    const gp = (r.GPNote || '').trim();
+    return gp === '' || gp.toLowerCase() === 'missing gp note';
+  }).length;
+  const totalP = STATE.filtered.reduce((a, r) => a + r.DR_P, 0);
+  const totalD = STATE.filtered.reduce((a, r) => a + r.DR_D, 0);
+  const completion = totalP > 0 ? ((totalD / totalP) * 100).toFixed(1) : '0.0';
+
+  const cards = [
+    { label: 'Total NOT DONE Cases', value: totalNotDone.toLocaleString(), cls: 'red', sub: `out of ${STATE.notDoneRows.length.toLocaleString()} unfiltered` },
+    { label: 'Doctors Affected', value: doctorCount, cls: 'yellow', sub: 'with at least one NOT DONE case' },
+    { label: 'Missing GP Note', value: missingGP.toLocaleString(), cls: 'red', sub: `${totalNotDone ? ((missingGP/totalNotDone)*100).toFixed(0) : 0}% of filtered cases` },
+    { label: 'DR Completion Rate', value: completion + '%', cls: 'green', sub: `${totalD.toFixed(0)} done / ${totalP.toFixed(0)} planned` }
+  ];
+
+  const row = document.getElementById('kpiRow');
+  row.innerHTML = cards.map(c => `
+    <div class="kpi-card ${c.cls}">
+      <div class="kpi-label">${c.label}</div>
+      <div class="kpi-value">${c.value}</div>
+      <div class="kpi-sub">${c.sub}</div>
+    </div>
+  `).join('');
+}
+
+function renderCharts() {
+  const stats = computeDoctorStats(STATE.filtered).sort((a, b) => b.count - a.count);
+
+  const byDoctorCtx = document.getElementById('byDoctorChart').getContext('2d');
+  if (STATE.charts.byDoctor) STATE.charts.byDoctor.destroy();
+  STATE.charts.byDoctor = new Chart(byDoctorCtx, {
+    type: 'bar',
+    data: {
+      labels: stats.map(s => s.doctor),
+      datasets: [{
+        label: 'NOT DONE cases',
+        data: stats.map(s => s.count),
+        backgroundColor: COLORS[0],
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      animation: false,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+    }
+  });
+
+  const statusCounts = {};
+  STATE.filtered.forEach(r => {
+    const st = r.Status || 'Unknown';
+    statusCounts[st] = (statusCounts[st] || 0) + 1;
+  });
+  const statusLabels = Object.keys(statusCounts);
+  const statusValues = Object.values(statusCounts);
+
+  const statusCtx = document.getElementById('statusChart').getContext('2d');
+  if (STATE.charts.status) STATE.charts.status.destroy();
+  STATE.charts.status = new Chart(statusCtx, {
+    type: 'doughnut',
+    data: {
+      labels: statusLabels,
+      datasets: [{ data: statusValues, backgroundColor: COLORS }]
+    },
+    options: {
+      responsive: true,
+      animation: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }
+    }
+  });
+
+  STATE.doctorStats = stats;
+}
+
+function renderDoctorSummaryTable() {
+  let stats = [...STATE.doctorStats];
+  const key = STATE.sortKey, dir = STATE.sortDir;
+  stats.sort((a, b) => {
+    let av = a[key], bv = b[key];
+    if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+    if (av < bv) return dir === 'asc' ? -1 : 1;
+    if (av > bv) return dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const tbody = document.getElementById('doctorSummaryBody');
+  tbody.innerHTML = stats.map(s => {
+    const compClass = s.completion >= 80 ? 'low' : (s.completion >= 50 ? 'med' : 'high');
+    return `
+      <tr class="clickable" data-doctor="${escapeHtml(s.doctor)}">
+        <td>${escapeHtml(s.doctor)}</td>
+        <td><strong>${s.count}</strong></td>
+        <td>${s.totalP.toFixed(0)}</td>
+        <td>${s.totalD.toFixed(0)}</td>
+        <td><span class="badge ${compClass}">${s.completion.toFixed(1)}%</span></td>
+        <td>${s.missingGP}</td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.querySelectorAll('tr.clickable').forEach(tr => {
+    tr.addEventListener('click', () => {
+      activeFilters.doctor = tr.dataset.doctor;
+      syncFilterControlsFromState();
+      applyFilters();
+      document.getElementById('detailTable').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+}
+
+let detailSearchTerm = '';
+
+function renderDetailTable() {
+  let rows = STATE.filtered;
+  if (detailSearchTerm) {
+    const s = detailSearchTerm.toLowerCase();
+    rows = rows.filter(r => (r.PatientName + ' ' + r.PTID + ' ' + r.DoctorName).toLowerCase().includes(s));
+  }
+
+  document.getElementById('detailCount').textContent = rows.length.toLocaleString();
+
+  const start = STATE.page * STATE.pageSize;
+  const end = Math.min(start + STATE.pageSize, rows.length);
+  const pageRows = rows.slice(start, end);
+
+  const tbody = document.getElementById('detailTableBody');
+  tbody.innerHTML = pageRows.map(r => `
+    <tr>
+      <td>${escapeHtml(r.DoctorName)}</td>
+      <td>${escapeHtml(r.Status)}</td>
+      <td>${escapeHtml(r.PTID)}</td>
+      <td>${escapeHtml(r.PatientName)}</td>
+      <td>${r.DR_P}</td>
+      <td>${r.DR_D}</td>
+      <td><strong>${r.DR_NOT_DONE}</strong></td>
+      <td>${escapeHtml(r.LastVisit)}</td>
+      <td>${escapeHtml(r.GPNote)}</td>
+      <td>${escapeHtml(r.NUNote)}</td>
+      <td>${escapeHtml(r.PTNote)}</td>
+      <td>${escapeHtml(r.IVNote)}</td>
+      <td>${escapeHtml(r.DressingNote)}</td>
+      <td>${escapeHtml(r.DialysisNote)}</td>
+      <td><a class="link-cell" target="_blank" rel="noopener" href="${buildProfileUrl(r.PTID)}">Open Profile</a></td>
+      <td><a class="link-cell" target="_blank" rel="noopener" href="${buildPrimaryReportUrl(r.PTID)}">Primary Report</a></td>
+    </tr>
+  `).join('');
+
+  document.getElementById('paginationInfo').textContent =
+    rows.length === 0 ? 'Showing 0–0 of 0' : `Showing ${start + 1}–${end} of ${rows.length.toLocaleString()}`;
+  document.getElementById('prevPageBtn').disabled = STATE.page === 0;
+  document.getElementById('nextPageBtn').disabled = end >= rows.length;
+
+  STATE._detailRowsForPagination = rows;
+}
+
+function renderAll() {
+  renderKPIs();
+  renderCharts();
+  renderDoctorSummaryTable();
+  renderDetailTable();
+}
+
+/* ---------------- Excel Export (replicates VBA macro exactly) ---------------- */
+
+function cleanSheetName(name, maxlen) {
+  let s = String(name);
+  ['/', '\\', ':', '*', '?', '[', ']'].forEach(ch => { s = s.split(ch).join('_'); });
+  return s.substring(0, maxlen);
+}
+
+async function exportPerDoctorWorkbook(rowsToExport) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'FutureCare DR NOT DONE Dashboard';
+  wb.created = new Date();
+
+  // Hidden _LISTS sheet with GP Note dropdown options + named range
+  const wsLists = wb.addWorksheet('_LISTS', { state: 'veryHidden' });
+  GP_OPTIONS.forEach((opt, i) => { wsLists.getCell(i + 1, 1).value = opt; });
+  wb.definedNames.add(`_LISTS!$A$1:$A$${GP_OPTIONS.length}`, 'GP_Note_Options');
+
+  // Group rows by doctor
+  const byDoctor = {};
+  rowsToExport.forEach(r => {
+    if (!byDoctor[r.DoctorName]) byDoctor[r.DoctorName] = [];
+    byDoctor[r.DoctorName].push(r);
+  });
+
+  // Summary sheet: Doctor Name + NOT DONE case count
+  const wsSummary = wb.addWorksheet('Summary');
+  const sumHeaderRow = wsSummary.getRow(1);
+  ['Doctor Name', 'NOT DONE Cases'].forEach((h, idx) => {
+    const cell = sumHeaderRow.getCell(idx + 1);
+    cell.value = h;
+    cell.font = { name: 'Arial', bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  });
+  sumHeaderRow.height = 20;
+
+  const sortedDoctorNames = Object.keys(byDoctor).sort();
+  sortedDoctorNames.forEach((doctorName, i) => {
+    const rowNum = i + 2;
+    wsSummary.getCell(rowNum, 1).value = doctorName;
+    wsSummary.getCell(rowNum, 2).value = byDoctor[doctorName].length;
+  });
+  const totalRowNum = sortedDoctorNames.length + 2;
+  wsSummary.getCell(totalRowNum, 1).value = 'Total';
+  wsSummary.getCell(totalRowNum, 1).font = { bold: true };
+  wsSummary.getCell(totalRowNum, 2).value = { formula: `SUM(B2:B${totalRowNum - 1})` };
+  wsSummary.getCell(totalRowNum, 2).font = { bold: true };
+  wsSummary.getColumn(1).width = 30;
+  wsSummary.getColumn(2).width = 16;
+
+  const HEADERS = [
+    "Doctor Name", "Status", "MRN", "Patient Name", "DR_P", "DR_D",
+    "DR_NOT_DONE", "Last Visit", "GP Note", "NU Note", "PT Note",
+    "IV Note", "Dressing Note", "Dialysis Note", "Patient Profile", "Primary Report"
+  ];
+  const YELLOW_COLS = [2, 8, 10, 11, 12, 13, 14]; // 1-based
+
+  const usedNames = new Set();
+
+  sortedDoctorNames.forEach(doctorName => {
+    const rows = byDoctor[doctorName];
+    let baseName = cleanSheetName(doctorName, 25) + `_(${rows.length})`;
+    baseName = baseName.substring(0, 31);
+    let finalName = baseName;
+    let suffix = 1;
+    while (usedNames.has(finalName)) {
+      finalName = (baseName.substring(0, 28) + '_' + (++suffix)).substring(0, 31);
+    }
+    usedNames.add(finalName);
+
+    const ws = wb.addWorksheet(finalName);
+
+    // Header row
+    const headerRow = ws.getRow(1);
+    HEADERS.forEach((h, idx) => {
+      const cell = headerRow.getCell(idx + 1);
+      cell.value = h;
+      cell.font = { name: 'Arial', bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    });
+    headerRow.height = 20;
+
+    // GP Note header -> red
+    const gpHeaderCell = headerRow.getCell(9);
+    gpHeaderCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } };
+    gpHeaderCell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+
+    // Yellow headers for new columns
+    YELLOW_COLS.forEach(colIdx => {
+      const c = headerRow.getCell(colIdx);
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+      c.font = { bold: true, color: { argb: 'FF000000' } };
+    });
+
+    // Data rows
+    rows.forEach((r, i) => {
+      const rowNum = i + 2;
+      const row = ws.getRow(rowNum);
+      row.getCell(1).value = r.DoctorName;
+      row.getCell(2).value = r.Status || '';
+      row.getCell(3).value = r.PTID;
+      row.getCell(4).value = r.PatientName || '';
+      row.getCell(5).value = r.DR_P;
+      row.getCell(6).value = r.DR_D;
+      row.getCell(7).value = r.DR_NOT_DONE;
+
+      if (r.LastVisit) {
+        const cell = row.getCell(8);
+        cell.value = r.LastVisit;
+        if (/^\d{4}-\d{2}-\d{2}/.test(r.LastVisit)) {
+          const d = new Date(r.LastVisit);
+          if (!isNaN(d.getTime())) {
+            cell.value = d;
+            cell.numFmt = 'DD/MM/YYYY';
+          }
+        }
+      }
+
+      row.getCell(9).value = r.GPNote || '';
+      row.getCell(10).value = r.NUNote || '';
+      row.getCell(11).value = r.PTNote || '';
+      row.getCell(12).value = r.IVNote || '';
+      row.getCell(13).value = r.DressingNote || '';
+      row.getCell(14).value = r.DialysisNote || '';
+
+      const profileCell = row.getCell(15);
+      profileCell.value = { text: 'Open Profile', hyperlink: buildProfileUrl(r.PTID) };
+      profileCell.font = { color: { argb: 'FF0563C1' }, underline: true };
+
+      const reportCell = row.getCell(16);
+      reportCell.value = { text: 'Primary Report', hyperlink: buildPrimaryReportUrl(r.PTID) };
+      reportCell.font = { color: { argb: 'FF0563C1' }, underline: true };
+    });
+
+    const lastDataRow = rows.length + 1;
+
+    // Data validation dropdown on GP Note column (I) -- applied as a single
+    // range to mirror the macro's Range("I2:I" & n).Validation.Add call.
+    if (rows.length > 0) {
+      ws.dataValidations.add(`I2:I${lastDataRow}`, {
+        type: 'list',
+        allowBlank: true,
+        formulae: ['GP_Note_Options'],
+        showErrorMessage: false,
+        promptTitle: 'GP Note',
+        prompt: 'Select a reason from the list',
+        showInputMessage: true
+      });
+
+      // Conditional formatting: orange for "Other (Specify)...", light red for "Missing GP Note"
+      ws.addConditionalFormatting({
+        ref: `I2:I${lastDataRow}`,
+        rules: [
+          {
+            type: 'cellIs', operator: 'equal', formulae: ['"Other (Specify)..."'], priority: 1,
+            style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFEB9C' } }, font: { bold: true } }
+          },
+          {
+            type: 'cellIs', operator: 'equal', formulae: ['"Missing GP Note"'], priority: 2,
+            style: {
+              fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' } },
+              font: { bold: true, color: { argb: 'FF9C0006' } }
+            }
+          }
+        ]
+      });
+    }
+
+    // Column widths
+    const widths = { A: 22, B: 12, C: 12, D: 28, E: 8, F: 8, G: 14, H: 14, I: 38, J: 30, K: 30, L: 30, M: 30, N: 30, O: 14, P: 16 };
+    Object.entries(widths).forEach(([col, w], idx) => {
+      ws.getColumn(idx + 1).width = w;
+    });
+  });
+
+  const buffer = await wb.xlsx.writeBuffer();
+  return buffer;
+}
+
+function downloadBuffer(buffer, filename) {
+  const blob = new Blob([buffer], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* ---------------- Event wiring & init ---------------- */
+
+function showError(msg) {
+  const el = document.getElementById('errorBanner');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function hideError() {
+  document.getElementById('errorBanner').style.display = 'none';
+}
+function setLoading(on, text) {
+  document.getElementById('loadingState').style.display = on ? 'block' : 'none';
+  document.getElementById('dropzoneWrap').style.display = on ? 'none' : (STATE.rawRows.length ? 'none' : 'block');
+  if (text) document.getElementById('loadingText').textContent = text;
+}
+
+async function handleFile(file) {
+  hideError();
+  setLoading(true, 'Reading file...');
+  try {
+    const rawRows = await parseUploadedFile(file);
+    setLoading(true, 'Analyzing DR NOT DONE cases...');
+    await new Promise(r => setTimeout(r, 50)); // let UI breathe
+
+    STATE.rawRows = rawRows;
+    STATE.notDoneRows = computeNotDoneRows(rawRows);
+
+    if (STATE.notDoneRows.length === 0) {
+      showError('No DR NOT DONE cases found in this file (DR Planned - DR Done was never greater than 0). The dashboard will show an empty result.');
+    }
+
+    populateFilterDropdowns();
+    activeFilters = { doctor: '', status: '', company: '', city: '', minNotDone: '', search: '' };
+    syncFilterControlsFromState();
+    applyFilters();
+
+    document.getElementById('dashboardContent').style.display = 'block';
+    document.getElementById('exportBtn').disabled = STATE.notDoneRows.length === 0;
+    document.getElementById('loadNewBtn').style.display = 'inline-flex';
+    setLoading(false);
+  } catch (err) {
+    console.error(err);
+    setLoading(false);
+    document.getElementById('dropzoneWrap').style.display = 'block';
+    showError('Could not process this file: ' + err.message);
+  }
+}
+
+function resetToUpload() {
+  STATE.rawRows = [];
+  STATE.notDoneRows = [];
+  STATE.filtered = [];
+  document.getElementById('dashboardContent').style.display = 'none';
+  document.getElementById('dropzoneWrap').style.display = 'block';
+  document.getElementById('exportBtn').disabled = true;
+  document.getElementById('loadNewBtn').style.display = 'none';
+  hideError();
+  document.getElementById('fileInput').value = '';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e => {
+    if (e.target.files.length) handleFile(e.target.files[0]);
+  });
+
+  document.getElementById('loadNewBtn').addEventListener('click', resetToUpload);
+
+  // Filters
+  document.getElementById('filterDoctor').addEventListener('change', e => { activeFilters.doctor = e.target.value; applyFilters(); });
+  document.getElementById('filterStatus').addEventListener('change', e => { activeFilters.status = e.target.value; applyFilters(); });
+  document.getElementById('filterCompany').addEventListener('change', e => { activeFilters.company = e.target.value; applyFilters(); });
+  document.getElementById('filterCity').addEventListener('change', e => { activeFilters.city = e.target.value; applyFilters(); });
+  document.getElementById('filterMinNotDone').addEventListener('input', e => { activeFilters.minNotDone = e.target.value; applyFilters(); });
+  document.getElementById('filterSearch').addEventListener('input', e => { activeFilters.search = e.target.value; applyFilters(); });
+  document.getElementById('clearFiltersBtn').addEventListener('click', () => {
+    activeFilters = { doctor: '', status: '', company: '', city: '', minNotDone: '', search: '' };
+    syncFilterControlsFromState();
+    applyFilters();
+  });
+
+  // Detail search + pagination
+  document.getElementById('detailSearchTop').addEventListener('input', e => {
+    detailSearchTerm = e.target.value;
+    STATE.page = 0;
+    renderDetailTable();
+  });
+  document.getElementById('prevPageBtn').addEventListener('click', () => {
+    if (STATE.page > 0) { STATE.page--; renderDetailTable(); }
+  });
+  document.getElementById('nextPageBtn').addEventListener('click', () => {
+    const rows = STATE._detailRowsForPagination || [];
+    if ((STATE.page + 1) * STATE.pageSize < rows.length) { STATE.page++; renderDetailTable(); }
+  });
+
+  // Sortable summary table headers
+  document.querySelectorAll('#doctorSummaryTable thead th').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.key;
+      if (!key) return;
+      if (STATE.sortKey === key) {
+        STATE.sortDir = STATE.sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        STATE.sortKey = key;
+        STATE.sortDir = 'desc';
+      }
+      renderDoctorSummaryTable();
+    });
+  });
+
+  // Export
+  document.getElementById('exportBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('exportBtn');
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ Building workbook...';
+    try {
+      const rowsToExport = STATE.filtered.length ? STATE.filtered : STATE.notDoneRows;
+      const buffer = await exportPerDoctorWorkbook(rowsToExport);
+      const ts = new Date().toISOString().slice(0, 10);
+      downloadBuffer(buffer, `Doctor_NOT_DONE_ALL_DOCTORS_${ts}.xlsx`);
+    } catch (err) {
+      console.error(err);
+      showError('Export failed: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  });
+});
+
+</script>
+
+
+</body></html>
