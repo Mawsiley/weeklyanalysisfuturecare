@@ -255,8 +255,16 @@ const GP_DIRECTORY_DEFAULT=[
   {staffId:'1253',name:'Awad Abdelmonim Awad Osman',specialist:'Dr Islam (1225)'}
 ];
 function gpNorm(v){return String(v??'').trim().toLowerCase().replace(/[._-]+/g,' ').replace(/\s+/g,' ')}
+function gpKey(v){return gpNorm(v).replace(/[^a-z0-9\u0600-\u06ff]/g,'')}
+function cleanStaffId(v){const s=String(v??'').trim().replace(/^["']|["']$/g,'');return /^\d+\.0+$/.test(s)?s.split('.')[0]:s}
+const GP_NAME_ALIASES={
+  abdullahriyadhalielnagar:'12161',abdullahalnajar:'12161',abdullahalnajjar:'12161',
+  yousefattiazainelabdintaha:'1135',yousefattiazainelatdintaha:'1135',
+  alasiddigabdelwahabibrahim:'347',alaasiddigabdelwahabibrahim:'347',
+  ryanomeralibadwi:'1121'
+};
 function gpDirectory(){try{const d=JSON.parse(localStorage.getItem(GP_DIRECTORY_KEY)||'null');return Array.isArray(d)&&d.length?d:GP_DIRECTORY_DEFAULT}catch{return GP_DIRECTORY_DEFAULT}}
-function identifyDoctor(raw){const value=String(raw??'').trim(),d=gpDirectory().find(x=>String(x.staffId)===value)||gpDirectory().find(x=>gpNorm(x.name)===gpNorm(value));return{gpId:d?.staffId||(/^\d+$/.test(value)?value:''),gp:d?.name||value||'غير محدد',specialist:d?.specialist||'Dr Ruqaya (465)'}}
+function identifyDoctor(raw,externalRaw){const value=String(raw??'').trim(),id=cleanStaffId(value),dir=gpDirectory(),aliasId=GP_NAME_ALIASES[gpKey(value)],d=dir.find(x=>cleanStaffId(x.staffId)===id)||dir.find(x=>gpKey(x.name)===gpKey(value))||dir.find(x=>cleanStaffId(x.staffId)===aliasId);return{gpId:d?.staffId||(/^\d+$/.test(id)?id:''),gp:d?.name||value||'غير محدد',specialist:d?.specialist||'Dr Ruqaya (465)',matched:!!d,sourceGp:value,externalDoctorId:cleanStaffId(externalRaw)}}
 
 const SM={0:'Refused',1:'Wait Insurance',4:'Wait Consultant',5:'Wait Invoice',6:'Completed'};
 const AM={'مقبول':'Approved','مرفوض':'Rejected','غير مطلوب':'Not Required',
@@ -401,11 +409,12 @@ function processRows(rows, fname){
     status:   getCol('Status','الحالة','حالة الطلب'),
     approval: getCol('ApprovalStatus','Approval Status','Approval','الموافقة','حالة الموافقة'),
     gp:       getCol('GP','Gp','الطبيب','الدكتور','gp'),
+    externalDoctor:getCol('External Doctor','ExternalDoctor','Specialist','Consultant','الطبيب الخارجي','الاختصاصي'),
     company:  getCol('InsuranceCompany','Insurance Company','Company','شركة التأمين','التأمين'),
   };
   dbg('Column map: '+JSON.stringify(COL));
 
-  const missing=Object.entries(COL).filter(([k,v])=>!v&&k!=='approval'&&k!=='company');
+  const missing=Object.entries(COL).filter(([k,v])=>!v&&!['approval','company','externalDoctor'].includes(k));
   if(missing.length>2){
     return setErr('لم يتم التعرف على أعمدة: '+missing.map(([k])=>k).join(', ')+'\nتأكد أن الملف من iCare');
   }
@@ -421,7 +430,7 @@ function processRows(rows, fname){
     const company=COL.company?(String(r[COL.company]||'').trim()||'غير محدد'):'غير محدد';
     const co=company==='غير محدد'||company===''?'غير محدد':company;
 
-    const doctor=identifyDoctor(COL.gp?r[COL.gp]:'');
+    const doctor=identifyDoctor(COL.gp?r[COL.gp]:'',COL.externalDoctor?r[COL.externalDoctor]:'');
     return{
       id:      Number(COL.id?r[COL.id]:0)||i+1,
       date:    COL.date?String(r[COL.date]||''):'',
@@ -432,6 +441,9 @@ function processRows(rows, fname){
       gpId:    doctor.gpId,
       gp:      doctor.gp,
       specialist:doctor.specialist,
+      doctorMatched:doctor.matched,
+      sourceGp:doctor.sourceGp,
+      externalDoctorId:doctor.externalDoctorId,
       company: co,
     };
   }).filter(r=>r.patient||r.id>0);
