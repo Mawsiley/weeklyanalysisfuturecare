@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FutureCare — GP Extra Requests</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0b0e14;--sur:#111620;--card:#161d2a;--bdr:#1f2d42;--acc:#0ea5e9;--grn:#22c55e;--yel:#f59e0b;--red:#ef4444;--pur:#a78bfa;--tel:#2dd4bf;--mut:#64748b;--txt:#e2e8f0;--dim:#94a3b8;--fh:'Syne',sans-serif;--fm:'JetBrains Mono',monospace;--r:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:var(--fh);min-height:100vh;overflow-x:hidden}
+
+/* ── UPLOAD SCREEN ───────────────────────── */
+#uscreen{position:fixed;inset:0;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);padding:20px}
+.ulogo{width:60px;height:60px;border-radius:14px;background:linear-gradient(135deg,var(--acc),var(--tel));display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:#fff;box-shadow:0 0 36px rgba(14,165,233,.3);margin-bottom:24px}
+.utitle{font-size:20px;font-weight:800;margin-bottom:6px;text-align:center}
+.usub{font-size:12px;color:var(--mut);margin-bottom:36px;text-align:center}
+.dropzone{width:400px;max-width:92vw;border:2px dashed var(--bdr);border-radius:14px;padding:44px 28px;text-align:center;background:var(--card);cursor:pointer;transition:.25s;position:relative}
+.dropzone:hover,.dropzone.over{border-color:var(--acc);background:rgba(14,165,233,.05);box-shadow:0 0 28px rgba(14,165,233,.12)}
+.dico{font-size:44px;margin-bottom:14px;display:block;animation:fl 3s ease-in-out infinite}
+@keyframes fl{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+.dtxt{font-size:14px;font-weight:700;margin-bottom:6px}
+.dsub{font-size:11px;color:var(--mut);margin-bottom:22px}
+.dbtn{display:inline-flex;align-items:center;gap:7px;background:var(--acc);color:#fff;border:none;border-radius:8px;padding:9px 20px;font-family:var(--fh);font-size:12px;font-weight:700;cursor:pointer;transition:.2s}
+.dbtn:hover{background:#38bdf8;transform:translateY(-1px)}
+#fi{display:none}
+.ufmt{display:flex;gap:7px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+.ufmt span{font-size:9px;font-family:var(--fm);background:var(--bdr);color:var(--mut);padding:2px 9px;border-radius:20px}
+.uprg{display:none;align-items:center;gap:8px;margin-top:18px;font-size:12px;color:var(--acc);justify-content:center}
+.spin{width:14px;height:14px;border:2px solid var(--bdr);border-top-color:var(--acc);border-radius:50%;animation:sp .7s linear infinite;flex-shrink:0}
+@keyframes sp{to{transform:rotate(360deg)}}
+.uerr{margin-top:12px;color:var(--red);font-size:11px;display:none;text-align:center;line-height:1.5}
+.udbg{margin-top:10px;font-size:10px;color:var(--mut);font-family:var(--fm);display:none;text-align:left;direction:ltr;max-height:80px;overflow:auto;background:var(--sur);padding:8px;border-radius:6px;border:1px solid var(--bdr)}
+
+/* ── APP ─────────────────────────────────── */
+#app{display:none}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:13px 26px;background:var(--sur);border-bottom:1px solid var(--bdr);position:sticky;top:0;z-index:100;backdrop-filter:blur(12px)}
+.tl{display:flex;align-items:center;gap:10px}
+.lsm{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--acc),var(--tel));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff}
+.lt{font-size:12px;font-weight:700}.ls{font-size:9px;color:var(--mut)}
+.tr2{display:flex;align-items:center;gap:7px}
+.cfil{font-family:var(--fm);font-size:10px;color:var(--grn);background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);padding:3px 10px;border-radius:20px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nbtn{display:flex;align-items:center;gap:5px;background:var(--card);color:var(--dim);border:1px solid var(--bdr);border-radius:6px;padding:5px 10px;font-family:var(--fh);font-size:10px;font-weight:700;cursor:pointer;transition:.15s}
+.nbtn:hover{border-color:var(--acc);color:var(--acc)}
+
+/* ── LAYOUT ─────────────────────────────── */
+.main{padding:20px 26px;max-width:1560px;margin:0 auto;position:relative;z-index:1}
+.st{font-size:9px;font-weight:700;color:var(--mut);letter-spacing:.12em;text-transform:uppercase;margin-bottom:11px;display:flex;align-items:center;gap:8px}
+.st::after{content:'';flex:1;height:1px;background:var(--bdr)}
+
+/* KPI */
+.kg{display:grid;grid-template-columns:repeat(5,1fr);gap:11px;margin-bottom:20px}
+.kpi{background:var(--card);border:1px solid var(--bdr);border-radius:var(--r);padding:15px 17px;position:relative;overflow:hidden;transition:.2s;cursor:pointer}
+.kpi:hover{transform:translateY(-2px);border-color:var(--acc)}
+.kpi.ak{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc),0 0 18px rgba(14,165,233,.12)}
+.kgl{position:absolute;top:-28px;right:-28px;width:75px;height:75px;border-radius:50%;opacity:.1;pointer-events:none}
+.kl{font-size:9px;font-weight:700;color:var(--mut);letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px}
+.kv{font-size:30px;font-weight:800;line-height:1;font-family:var(--fm);letter-spacing:-.02em}
+.ks{font-size:9px;color:var(--mut);margin-top:4px}
+.kb{position:absolute;bottom:0;left:0;height:3px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+
+/* CHARTS */
+.crow{display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:11px;margin-bottom:20px}
+.cc{background:var(--card);border:1px solid var(--bdr);border-radius:var(--r);padding:16px}
+.ctt{font-size:10px;font-weight:700;color:var(--dim);letter-spacing:.03em;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.cbg{font-size:9px;background:var(--bdr);color:var(--mut);padding:2px 6px;border-radius:20px;font-family:var(--fm)}
+.dw{display:flex;align-items:center;gap:13px}
+.dl{display:flex;flex-direction:column;gap:6px}
+.li{display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;padding:2px 4px;border-radius:4px;transition:.15s}
+.li:hover{background:rgba(255,255,255,.04)}.li.af{background:rgba(14,165,233,.08)}
+.ldot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.lcn{font-family:var(--fm);font-weight:600;color:var(--txt)}.llb{color:var(--mut)}
+.cb{display:flex;flex-direction:column;gap:9px}
+.br .bm{display:flex;justify-content:space-between;margin-bottom:3px;font-size:10px}
+.bn{color:var(--dim);font-weight:600}.bv2{font-family:var(--fm);font-size:9px;color:var(--mut)}
+.bt{height:5px;background:var(--bdr);border-radius:3px;overflow:hidden}
+.bf{height:100%;border-radius:3px;transition:width .7s cubic-bezier(.4,0,.2,1)}
+.gpl{display:flex;flex-direction:column;gap:7px}
+.gpr{display:flex;align-items:center;gap:7px;cursor:pointer;padding:4px 5px;border-radius:5px;transition:.15s}
+.gpr:hover{background:rgba(255,255,255,.04)}.gpr.af{background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.2)}
+.gav{width:24px;height:24px;border-radius:5px;background:var(--bdr);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--acc);flex-shrink:0}
+.gin{flex:1;min-width:0}
+.gnm{font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gst{display:flex;gap:4px;margin-top:2px}
+.gsp{font-size:9px;font-family:var(--fm);padding:1px 5px;border-radius:3px}
+.gt{background:var(--bdr);color:var(--dim)}.gw{background:rgba(245,158,11,.15);color:var(--yel)}.gr{background:rgba(239,68,68,.12);color:#f87171}
+
+/* DAILY */
+.dc2{background:var(--card);border:1px solid var(--bdr);border-radius:var(--r);padding:16px 20px;margin-bottom:20px}
+.dbs{display:flex;align-items:flex-end;gap:4px;height:80px;margin-top:10px;padding-bottom:20px;position:relative}
+.dbs::after{content:'';position:absolute;bottom:20px;left:0;right:0;height:1px;background:var(--bdr)}
+.dc3{flex:1;display:flex;flex-direction:column;align-items:center;position:relative}
+.db2{width:100%;border-radius:3px 3px 0 0;min-height:3px;background:linear-gradient(to top,var(--acc),var(--tel));cursor:pointer;transition:.5s cubic-bezier(.4,0,.2,1)}
+.db2:hover{filter:brightness(1.3)}.db2.hi{background:linear-gradient(to top,var(--yel),#fde68a)}
+.db2::after{content:attr(data-c);position:absolute;top:-17px;left:50%;transform:translateX(-50%);font-family:var(--fm);font-size:9px;color:var(--acc);opacity:0;transition:.2s;white-space:nowrap;background:var(--card);padding:1px 4px;border-radius:3px;border:1px solid var(--bdr)}
+.db2:hover::after{opacity:1}
+.dlb{position:absolute;bottom:-19px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--mut);font-family:var(--fm);white-space:nowrap}
+
+/* REPORT */
+.rp{background:var(--card);border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden;margin-bottom:20px}
+.rh{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--bdr);background:var(--sur)}
+.rtl{font-size:12px;font-weight:700;display:flex;align-items:center;gap:7px}
+.rtg{font-size:9px;background:rgba(14,165,233,.15);color:var(--acc);padding:2px 8px;border-radius:20px;font-family:var(--fm)}
+.rac{display:flex;gap:6px}
+.rb{display:flex;align-items:center;gap:4px;background:var(--bdr);color:var(--dim);border:none;border-radius:5px;padding:5px 10px;font-family:var(--fh);font-size:10px;font-weight:700;cursor:pointer;transition:.15s}
+.rb:hover{background:var(--acc);color:#fff}.rb.cp{background:var(--grn);color:#fff}
+.rb.rg{background:rgba(14,165,233,.12);color:var(--acc);border:1px solid rgba(14,165,233,.2)}
+.rb.rg:hover{background:var(--acc);color:#fff}
+.rbody{padding:16px 20px;min-height:90px}
+.rld{display:none;align-items:center;gap:8px;color:var(--mut);font-size:11px}
+.rtxt{font-size:11.5px;line-height:1.85;color:var(--dim);white-space:pre-wrap;font-family:var(--fh)}
+.rtxt strong{color:var(--txt)}
+
+/* FILTER + TABLE */
+.fb{display:flex;align-items:center;gap:6px;margin-bottom:11px;flex-wrap:wrap}
+.flb{font-size:9px;color:var(--mut);font-weight:700}
+.fc{font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;border:1px solid var(--bdr);background:var(--card);color:var(--mut);cursor:pointer;transition:.15s;font-family:var(--fh)}
+.fc:hover{border-color:var(--acc);color:var(--acc)}
+.fc.a{background:var(--acc);border-color:var(--acc);color:#fff;box-shadow:0 0 10px rgba(14,165,233,.25)}
+.fc.fr.a{background:var(--red);border-color:var(--red);box-shadow:0 0 10px rgba(239,68,68,.25)}
+.fc.fw.a{background:var(--yel);border-color:var(--yel);color:#000}
+.fc.fi.a{background:var(--pur);border-color:var(--pur)}
+.fc.fv.a{background:var(--tel);border-color:var(--tel);color:#000}
+.fc.fco.a{background:var(--grn);border-color:var(--grn)}
+.si{margin-right:auto;background:var(--card);border:1px solid var(--bdr);color:var(--txt);font-family:var(--fh);font-size:10px;padding:5px 11px;border-radius:6px;outline:none;width:170px;transition:.2s;direction:rtl}
+.si:focus{border-color:var(--acc)}.si::placeholder{color:var(--mut)}
+.tc{background:var(--card);border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden}
+.th2{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--bdr)}
+.ttl{font-size:11px;font-weight:700}.tcn{font-size:9px;color:var(--mut);font-family:var(--fm);background:var(--bdr);padding:2px 8px;border-radius:20px}
+table{width:100%;border-collapse:collapse;direction:ltr}
+thead th{text-align:left;padding:8px 13px;font-size:9px;font-weight:700;color:var(--mut);letter-spacing:.1em;text-transform:uppercase;background:var(--sur);border-bottom:1px solid var(--bdr);cursor:pointer;user-select:none}
+thead th:hover{color:var(--acc)}
+tbody tr{border-bottom:1px solid rgba(31,45,66,.5);transition:.12s}
+tbody tr:hover{background:rgba(14,165,233,.04)}
+tbody tr:last-child{border-bottom:none}
+tbody td{padding:9px 13px;font-size:10px;color:var(--dim);vertical-align:middle}
+.tid{font-family:var(--fm);font-size:9px;color:var(--acc);font-weight:600}
+.tpat{font-weight:700;color:var(--txt);font-size:10px}
+.tptid{font-family:var(--fm);font-size:9px;color:var(--acc)}
+.tdt{font-family:var(--fm);font-size:9px}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap}
+.pill::before{content:'';width:4px;height:4px;border-radius:50%;flex-shrink:0}
+.ps{background:rgba(239,68,68,.15);color:#f87171}.ps::before{background:var(--red)}
+.pw{background:rgba(245,158,11,.15);color:#fbbf24}.pw::before{background:var(--yel)}
+.pi{background:rgba(167,139,250,.15);color:#c4b5fd}.pi::before{background:var(--pur)}
+.pv{background:rgba(45,212,191,.15);color:#5eead4}.pv::before{background:var(--tel)}
+.pc{background:rgba(34,197,94,.15);color:#4ade80}.pc::before{background:var(--grn)}
+.pa{background:rgba(34,197,94,.1);color:#4ade80;font-size:9px;padding:1px 6px;border-radius:4px}
+.pr2{background:rgba(239,68,68,.1);color:#f87171;font-size:9px;padding:1px 6px;border-radius:4px}
+.pw2{background:rgba(167,139,250,.1);color:#c4b5fd;font-size:9px;padding:1px 6px;border-radius:4px}
+.ppa{background:rgba(245,158,11,.1);color:#fbbf24;font-size:9px;padding:1px 6px;border-radius:4px}
+.pn{background:rgba(100,116,139,.1);color:#94a3b8;font-size:9px;padding:1px 6px;border-radius:4px}
+.co{font-size:9px;font-family:var(--fm);font-weight:600;padding:1px 7px;border-radius:4px}
+.ct2{background:rgba(14,165,233,.12);color:var(--acc)}.cb2{background:rgba(34,197,94,.12);color:var(--grn)}.cm2{background:rgba(167,139,250,.12);color:var(--pur)}.cx2{background:var(--bdr);color:var(--mut)}
+.pagi{display:flex;align-items:center;justify-content:space-between;padding:9px 16px;border-top:1px solid var(--bdr);font-size:9px;color:var(--mut)}
+.pbs{display:flex;gap:4px}
+.pb{background:var(--bdr);border:none;color:var(--dim);width:24px;height:24px;border-radius:4px;cursor:pointer;font-family:var(--fm);font-size:10px;transition:.15s;display:flex;align-items:center;justify-content:center}
+.pb:hover{background:var(--acc);color:#fff}.pb.a{background:var(--acc);color:#fff}.pb:disabled{opacity:.3;cursor:not-allowed}
+.empty{padding:40px;text-align:center;color:var(--mut);display:none}.empty.show{display:block}
+
+@keyframes fu{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.kpi{animation:fu .4s ease both}
+.kpi:nth-child(1){animation-delay:.04s}.kpi:nth-child(2){animation-delay:.08s}.kpi:nth-child(3){animation-delay:.12s}.kpi:nth-child(4){animation-delay:.16s}.kpi:nth-child(5){animation-delay:.20s}
+.cc,.dc2,.rp,.tc{animation:fu .3s .12s ease both}
+@media(max-width:1100px){.kg{grid-template-columns:repeat(3,1fr)}.crow{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.main{padding:12px}.kg{grid-template-columns:1fr 1fr}.crow{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- ── UPLOAD SCREEN ──────────────────────── -->
+<div id="uscreen">
+  <div class="ulogo">FC</div>
+  <div class="utitle">GP Extra Requests Dashboard</div>
+  <div class="usub">FutureCare — Referral Authorization Monitor</div>
+  <div class="dropzone" id="dz"
+    ondragover="event.preventDefault();this.classList.add('over')"
+    ondragleave="this.classList.remove('over')"
+    ondrop="onDrop(event)">
+    <span class="dico">📊</span>
+    <div class="dtxt">اسحب ملف الإكسل هنا</div>
+    <div class="dsub">ملف gp-extra-req-list من iCare</div>
+    <button class="dbtn" onclick="document.getElementById('fi').click()">📂 اختر الملف</button>
+    <input type="file" id="fi" accept=".xls,.xlsx,.csv" onchange="startLoad(this.files[0])">
+    <div class="ufmt"><span>.xls</span><span>.xlsx</span><span>iCare Export</span></div>
+    <div class="uprg" id="uprg"><div class="spin"></div><span id="umsg">جاري القراءة…</span></div>
+    <div class="uerr" id="uerr"></div>
+    <div class="udbg" id="udbg"></div>
+  </div>
+</div>
+
+<!-- ── APP ───────────────────────────────── -->
+<div id="app">
+  <div class="topbar">
+    <div class="tl">
+      <div class="lsm">FC</div>
+      <div><div class="lt">GP Extra Requests</div><div class="ls">FutureCare — Referral Monitor</div></div>
+    </div>
+    <div class="tr2">
+      <div class="cfil" id="cfil">—</div>
+      <button class="nbtn" onclick="goUpload()">⬆ ملف جديد</button>
+    </div>
+  </div>
+  <div class="main">
+    <div class="st">نظرة عامة</div>
+    <div class="kg">
+      <div class="kpi ak" onclick="fltKPI('all')" id="k-a"><div class="kgl" style="background:var(--acc)"></div><div class="kl">إجمالي الطلبات</div><div class="kv" id="kv-t" style="color:var(--acc)">0</div><div class="ks" id="ks-t">—</div><div class="kb" style="background:var(--acc);width:100%"></div></div>
+      <div class="kpi" onclick="fltKPI('Wait Consultant')" id="k-wc"><div class="kgl" style="background:var(--yel)"></div><div class="kl">بانتظار الاستشاري</div><div class="kv" id="kv-wc" style="color:var(--yel)">0</div><div class="ks" id="ks-wc">—</div><div class="kb" id="kb-wc" style="background:var(--yel)"></div></div>
+      <div class="kpi" onclick="fltKPI('Refused')" id="k-rf"><div class="kgl" style="background:var(--red)"></div><div class="kl">مرفوض</div><div class="kv" id="kv-rf" style="color:var(--red)">0</div><div class="ks" id="ks-rf">—</div><div class="kb" id="kb-rf" style="background:var(--red)"></div></div>
+      <div class="kpi" onclick="fltKPI('Wait Invoice')" id="k-wv"><div class="kgl" style="background:var(--tel)"></div><div class="kl">بانتظار الفاتورة</div><div class="kv" id="kv-wv" style="color:var(--tel)">0</div><div class="ks" id="ks-wv">—</div><div class="kb" id="kb-wv" style="background:var(--tel)"></div></div>
+      <div class="kpi" id="k-rt"><div class="kgl" style="background:var(--grn)"></div><div class="kl">نسبة الموافقة</div><div class="kv" id="kv-rt" style="color:var(--grn)">0%</div><div class="ks">من الإجمالي</div><div class="kb" id="kb-rt" style="background:var(--grn)"></div></div>
+    </div>
+    <div class="st">تحليلات — اضغط الطبيب أو الحالة للتصفية</div>
+    <div class="crow">
+      <div class="cc"><div class="ctt">توزيع الحالات <span class="cbg" id="bd-s">—</span></div><div class="dw"><svg width="96" height="96" viewBox="0 0 110 110" style="flex-shrink:0"><circle cx="55" cy="55" r="42" fill="none" stroke="var(--bdr)" stroke-width="12"/><g id="arcs"></g><text id="dctr" x="55" y="59" text-anchor="middle" font-family="'JetBrains Mono'" font-size="15" font-weight="700" fill="var(--txt)">0</text></svg><div class="dl" id="dleg"></div></div></div>
+      <div class="cc"><div class="ctt">شركات التأمين <span class="cbg" id="bd-c">—</span></div><div class="cb" id="cobars"></div></div>
+      <div class="cc"><div class="ctt">الأطباء <span class="cbg">اضغط للتصفية</span></div><div class="gpl" id="gpl"></div></div>
+    </div>
+    <div class="st">التوزيع اليومي</div>
+    <div class="dc2"><div class="ctt">الطلبات يومياً <span class="cbg" id="bd-d">—</span></div><div class="dbs" id="dbars"></div></div>
+    <div class="st">تقرير واتساب</div>
+    <div class="rp">
+      <div class="rh"><div class="rtl">📋 التقرير <span class="rtg" id="rtg">الكل</span></div><div class="rac"><button class="rb rg" onclick="genReport()">↺ تحديث</button><button class="rb" id="cpbtn" onclick="cpReport()">⎘ نسخ للواتساب</button></div></div>
+      <div class="rbody"><div class="rld" id="rld"><div class="spin"></div><span>جاري التوليد…</span></div><div class="rtxt" id="rtxt"></div></div>
+    </div>
+    <div class="st">تفاصيل الطلبات</div>
+    <div class="fb" id="fb">
+      <span class="flb">تصفية:</span>
+      <button class="fc a" data-s="all">الكل</button>
+      <button class="fc fw" data-s="Wait Consultant">بانتظار الاستشاري</button>
+      <button class="fc fr" data-s="Refused">مرفوض</button>
+      <button class="fc fv" data-s="Wait Invoice">بانتظار الفاتورة</button>
+      <button class="fc fi" data-s="Wait Insurance">بانتظار التأمين</button>
+      <button class="fc fco" data-s="Completed">مكتمل</button>
+      <input class="si" type="text" placeholder="🔍 بحث…" id="srch">
+    </div>
+    <div class="tc"><div class="th2"><div class="ttl" id="ttl">جميع الطلبات</div><div class="tcn" id="tcn">—</div></div><div style="overflow-x:auto"><table><thead><tr><th onclick="srt('id')">ID ⇅</th><th onclick="srt('date')">التاريخ ⇅</th><th>المريض</th><th onclick="srt('status')">الحالة ⇅</th><th>الموافقة</th><th onclick="srt('gp')">الطبيب ⇅</th><th onclick="srt('company')">التأمين ⇅</th></tr></thead><tbody id="tbody"></tbody></table></div><div class="empty" id="empty"><div style="font-size:32px;margin-bottom:8px">🔍</div>لا توجد نتائج.</div><div class="pagi"><div id="pinf">—</div><div class="pbs" id="pbs"></div></div></div>
+  </div>
+</div>
+
+<script>
+// ══ STATE & MAPS ══════════════════════════════════════
+let DATA=[], FILT=[], AST='all', AGP='', SQ='', SK='date', SD=-1, PG=1;
+const PZ=20;
+
+const SM={0:'Refused',1:'Wait Insurance',4:'Wait Consultant',5:'Wait Invoice',6:'Completed'};
+const AM={'مقبول':'Approved','مرفوض':'Rejected','غير مطلوب':'Not Required',
+          'بانتظار رد شركة التأمين':'Waiting Insurance Reply','جزئي':'Partial',
+          'لم ترفع':'Not Submitted','401':'401'};
+const STAR={'Wait Consultant':'بانتظار الاستشاري','Refused':'مرفوض',
+            'Wait Invoice':'بانتظار الفاتورة','Wait Insurance':'بانتظار التأمين','Completed':'مكتمل'};
+const STEM={'Wait Consultant':'🟡','Refused':'🔴','Wait Invoice':'🔵','Wait Insurance':'🟣','Completed':'🟢'};
+const COEM={'Tawuniya':'🔷','Bupa':'🟩','MEDGULF':'🟪'};
+const APEM={'Approved':'✅','Rejected':'❌','Waiting Insurance Reply':'⏳','Partial':'🔶','Not Required':'⬜','Not Submitted':'➖','401':'➖','—':'➖',''  :'➖'};
+const SCS={'Refused':'ps','Wait Consultant':'pw','Wait Insurance':'pi','Wait Invoice':'pv','Completed':'pc'};
+const SCOL={'Refused':'#ef4444','Wait Consultant':'#f59e0b','Wait Insurance':'#a78bfa','Wait Invoice':'#2dd4bf','Completed':'#22c55e'};
+const ACS={'Approved':'pa','Rejected':'pr2','Waiting Insurance Reply':'pw2','Partial':'ppa','Not Required':'pn','Not Submitted':'pn','401':'pn','—':'pn',''  :'pn'};
+const ACAR={'Approved':'موافق','Rejected':'مرفوض','Waiting Insurance Reply':'بانتظار','Partial':'جزئي','Not Required':'غير مطلوب','Not Submitted':'لم ترفع','401':'401','—':'—',''  :'—'};
+const CCS={'Tawuniya':'ct2','Bupa':'cb2','MEDGULF':'cm2'};
+
+// ══ HELPERS ══════════════════════════════════════════
+const cn=(a,k,v)=>a.filter(r=>r[k]===v).length;
+const pt=(n,t)=>t?Math.round(n/t*100):0;
+const ini=n=>n.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+function fmD(s){try{const d=new Date(s);return isNaN(d)?s:d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}catch{return s}}
+function shD(s){try{const d=new Date(s);return isNaN(d)?s:d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}catch{return s}}
+function dbg(m){const el=document.getElementById('udbg');el.style.display='block';el.textContent+=m+'\n'}
+function setMsg(m){document.getElementById('umsg').textContent=m}
+function setErr(m){const el=document.getElementById('uerr');el.style.display='block';el.textContent=m;document.getElementById('uprg').style.display='none'}
+
+// ══ FILE LOADING ══════════════════════════════════════
+function onDrop(e){e.preventDefault();document.getElementById('dz').classList.remove('over');const f=e.dataTransfer.files[0];if(f)startLoad(f)}
+
+async function startLoad(file){
+  if(!file)return;
+  document.getElementById('uprg').style.display='flex';
+  document.getElementById('uerr').style.display='none';
+  document.getElementById('udbg').style.display='none';
+  document.getElementById('udbg').textContent='';
+  setMsg('جاري تحميل المكتبة…');
+  dbg('File: '+file.name+' size:'+file.size);
+
+  try{
+    if(!window.XLSX){
+      await new Promise((res,rej)=>{
+        const s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload=()=>{dbg('SheetJS loaded');res()};
+        s.onerror=()=>rej(new Error('فشل تحميل SheetJS'));
+        document.head.appendChild(s);
+      });
+    }
+    setMsg('جاري قراءة الملف…');
+    const buf=await file.arrayBuffer();
+    dbg('Buffer size: '+buf.byteLength);
+
+    let rows=null;
+
+    // ── Strategy 1: SheetJS as array ──────────
+    try{
+      const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true,raw:false});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      dbg('Strategy 1 (SheetJS array): '+rows.length+' rows, keys: '+Object.keys(rows[0]||{}).join(', '));
+    }catch(e1){dbg('S1 failed: '+e1.message)}
+
+    // ── Strategy 2: SheetJS as binary string ──
+    if(!rows||!rows.length){
+      try{
+        const txt16=new TextDecoder('utf-16').decode(buf);
+        const b64=btoa(unescape(encodeURIComponent(txt16.substring(0,100))));
+        dbg('UTF-16 decode preview: '+txt16.substring(0,80).replace(/\n/g,'↵'));
+        const wb2=XLSX.read(txt16,{type:'string',raw:false});
+        const ws2=wb2.Sheets[wb2.SheetNames[0]];
+        rows=XLSX.utils.sheet_to_json(ws2,{defval:''});
+        dbg('Strategy 2 (SheetJS string): '+rows.length+' rows');
+      }catch(e2){dbg('S2 failed: '+e2.message)}
+    }
+
+    // ── Strategy 3: Manual HTML table parse ───
+    if(!rows||!rows.length){
+      try{
+        const txt=new TextDecoder('utf-16').decode(buf);
+        const parser=new DOMParser();
+        const doc=parser.parseFromString(txt,'text/html');
+        const trs=[...doc.querySelectorAll('tr')];
+        dbg('Strategy 3: found '+trs.length+' <tr> rows');
+        if(trs.length<2)throw new Error('لا توجد صفوف كافية في الجدول');
+        const hdrs=[...trs[0].querySelectorAll('th,td')].map(c=>c.textContent.trim());
+        dbg('Headers: '+hdrs.join(' | '));
+        rows=trs.slice(1).map(tr=>{
+          const cells=[...tr.querySelectorAll('td')].map(c=>c.textContent.trim());
+          const obj={};
+          hdrs.forEach((h,i)=>obj[h]=cells[i]??'');
+          return obj;
+        }).filter(r=>hdrs.some(h=>r[h]));
+        dbg('Strategy 3 rows: '+rows.length);
+      }catch(e3){dbg('S3 failed: '+e3.message)}
+    }
+
+    // ── Strategy 4: Try as UTF-8 CSV-ish ──────
+    if(!rows||!rows.length){
+      try{
+        const txt=new TextDecoder('utf-8').decode(buf);
+        dbg('Strategy 4 UTF-8 preview: '+txt.substring(0,80));
+        const wb3=XLSX.read(txt,{type:'string',raw:false});
+        const ws3=wb3.Sheets[wb3.SheetNames[0]];
+        rows=XLSX.utils.sheet_to_json(ws3,{defval:''});
+        dbg('Strategy 4 rows: '+rows.length);
+      }catch(e4){dbg('S4 failed: '+e4.message)}
+    }
+
+    if(!rows||!rows.length) throw new Error('لم يتم العثور على بيانات في الملف. تأكد أن الملف من iCare.');
+    setMsg('جاري المعالجة…');
+    processRows(rows, file.name);
+
+  }catch(ex){
+    dbg('FATAL: '+ex.message);
+    setErr('⚠️ '+ex.message+'\n\nقم بمشاركة رسالة الخطأ مع المطوّر.');
+  }
+}
+
+// ══ PROCESS ROWS ══════════════════════════════════════
+function processRows(rows, fname){
+  dbg('Processing '+rows.length+' rows...');
+  if(!rows.length)return setErr('الملف فارغ');
+  
+  // Flexible column finder — normalize and match
+  const norm=s=>String(s||'').toLowerCase().replace(/[\s_\-\.]/g,'');
+  const allKeys=Object.keys(rows[0]);
+  dbg('All keys: '+allKeys.join(' | '));
+
+  function getCol(...candidates){
+    for(const c of candidates){
+      const found=allKeys.find(k=>norm(k)===norm(c));
+      if(found)return found;
+    }
+    return null;
+  }
+
+  const COL={
+    id:       getCol('RequestID','Request ID','ID','id','رقم الطلب'),
+    date:     getCol('RequestDate','Request Date','Date','التاريخ'),
+    ptid:     getCol('PTID','PatientID','Patient ID','رقم الملف','رقم المريض'),
+    patient:  getCol('PatientName','Patient Name','Patient','المريض','اسم المريض'),
+    status:   getCol('Status','الحالة','حالة الطلب'),
+    approval: getCol('ApprovalStatus','Approval Status','Approval','الموافقة','حالة الموافقة'),
+    gp:       getCol('GP','Gp','الطبيب','الدكتور','gp'),
+    company:  getCol('InsuranceCompany','Insurance Company','Company','شركة التأمين','التأمين'),
+  };
+  dbg('Column map: '+JSON.stringify(COL));
+
+  const missing=Object.entries(COL).filter(([k,v])=>!v&&k!=='approval'&&k!=='company');
+  if(missing.length>2){
+    return setErr('لم يتم التعرف على أعمدة: '+missing.map(([k])=>k).join(', ')+'\nتأكد أن الملف من iCare');
+  }
+
+  DATA=rows.map((r,i)=>{
+    const rawSt=COL.status?r[COL.status]:'';
+    const numSt=Number(rawSt);
+    const status=SM[numSt]!==undefined?SM[numSt]:(String(rawSt).trim()||'');
+
+    const rawAp=COL.approval?r[COL.approval]:'';
+    const approval=AM[String(rawAp).trim()]||String(rawAp).trim()||'—';
+
+    const company=COL.company?(String(r[COL.company]||'').trim()||'غير محدد'):'غير محدد';
+    const co=company==='غير محدد'||company===''?'غير محدد':company;
+
+    return{
+      id:      Number(COL.id?r[COL.id]:0)||i+1,
+      date:    COL.date?String(r[COL.date]||''):'',
+      ptid:    COL.ptid?String(r[COL.ptid]||''):'',
+      patient: COL.patient?String(r[COL.patient]||'').trim():'',
+      status,
+      approval,
+      gp:      COL.gp?String(r[COL.gp]||'').trim():'',
+      company: co,
+    };
+  }).filter(r=>r.patient||r.id>0);
+
+  dbg('Parsed DATA: '+DATA.length+' records');
+  dbg('Sample: '+JSON.stringify(DATA[0]));
+
+  if(!DATA.length)return setErr('لا توجد سجلات صالحة في الملف');
+
+  // Show app
+  document.getElementById('uscreen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('cfil').textContent=fname;
+  AST='all'; AGP=''; SQ=''; PG=1; SK='date'; SD=-1;
+  document.querySelectorAll('.fc').forEach(c=>{c.classList.remove('a');if(c.dataset.s==='all')c.classList.add('a')});
+  renderAll();
+}
+
+function goUpload(){document.getElementById('uscreen').style.display='flex';document.getElementById('app').style.display='none';document.getElementById('uprg').style.display='none';document.getElementById('uerr').style.display='none';document.getElementById('udbg').style.display='none';DATA=[];FILT=[]}
+
+// ══ RENDER KPI ════════════════════════════════════════
+function renderKPI(){
+  const t=DATA.length,wc=cn(DATA,'status','Wait Consultant'),
+        rf=cn(DATA,'status','Refused'),wv=cn(DATA,'status','Wait Invoice'),
+        ap=cn(DATA,'approval','Approved'),rt=pt(ap,t);
+  const ds=DATA.map(d=>new Date(d.date)).filter(d=>!isNaN(d)).sort((a,b)=>a-b);
+  const dr=ds.length?shD(ds[0])+' ← '+shD(ds[ds.length-1]):'—';
+  document.getElementById('kv-t').textContent=t;   document.getElementById('ks-t').textContent=dr;
+  document.getElementById('kv-wc').textContent=wc; document.getElementById('ks-wc').textContent=pt(wc,t)+'% من الإجمالي';
+  document.getElementById('kv-rf').textContent=rf; document.getElementById('ks-rf').textContent=pt(rf,t)+'% نسبة الرفض';
+  document.getElementById('kv-wv').textContent=wv; document.getElementById('ks-wv').textContent=pt(wv,t)+'% من الإجمالي';
+  document.getElementById('kv-rt').textContent=rt+'%';
+  document.getElementById('kb-wc').style.width=pt(wc,t)+'%';
+  document.getElementById('kb-rf').style.width=pt(rf,t)+'%';
+  document.getElementById('kb-wv').style.width=pt(wv,t)+'%';
+  document.getElementById('kb-rt').style.width=rt+'%';
+}
+
+// ══ RENDER DONUT ══════════════════════════════════════
+function renderDonut(){
+  const t=DATA.length,m={};
+  DATA.forEach(r=>m[r.status]=(m[r.status]||0)+1);
+  const es=Object.entries(SCOL).map(([k,col])=>({k,col,n:m[k]||0})).filter(e=>e.n>0);
+  const R=42,C=2*Math.PI*R;let off=-C*.25,a='';
+  es.forEach(e=>{const d=e.n/t*C;a+=`<circle cx="55" cy="55" r="${R}" fill="none" stroke="${e.col}" stroke-width="12" stroke-dasharray="${d} ${C-d}" stroke-dashoffset="${-off}"/>`;off+=d;});
+  document.getElementById('arcs').innerHTML=a;
+  document.getElementById('dctr').textContent=t;
+  document.getElementById('bd-s').textContent=es.length+' حالات';
+  document.getElementById('dleg').innerHTML=es.map(e=>`<div class="li ${AST===e.k?'af':''}" onclick="fltSt('${e.k}')"><div class="ldot" style="background:${e.col}"></div><span class="lcn">${e.n}</span><span class="llb">${STAR[e.k]||e.k}</span></div>`).join('');
+}
+
+// ══ RENDER COMPANY ════════════════════════════════════
+function renderCompany(){
+  const m={};
+  DATA.forEach(r=>{const c=r.company||'غير محدد';m[c]=(m[c]||0)+1});
+  const s=Object.entries(m).sort((a,b)=>b[1]-a[1]),mx=s[0]?.[1]||1;
+  const cl={'Tawuniya':'var(--acc)','Bupa':'var(--grn)','MEDGULF':'var(--pur)'};
+  document.getElementById('cobars').innerHTML=s.map(([n,v])=>`<div class="br"><div class="bm"><span class="bn">${n}</span><span class="bv2">${v} · ${pt(v,DATA.length)}%</span></div><div class="bt"><div class="bf" style="width:${pt(v,mx)}%;background:${cl[n]||'var(--mut)'}"></div></div></div>`).join('');
+  document.getElementById('bd-c').textContent=s.length+' شركات';
+}
+
+// ══ RENDER GP ═════════════════════════════════════════
+function renderGP(){
+  const m={};
+  DATA.forEach(r=>{if(!m[r.gp])m[r.gp]={t:0,w:0,f:0};m[r.gp].t++;if(r.status==='Wait Consultant')m[r.gp].w++;if(r.status==='Refused')m[r.gp].f++;});
+  const s=Object.entries(m).sort((a,b)=>b[1].t-a[1].t).slice(0,7);
+  document.getElementById('gpl').innerHTML=s.map(([gp,i],x)=>`<div class="gpr ${AGP===gp?'af':''}" onclick="fltGP('${gp}')"><div style="font-family:var(--fm);font-size:9px;color:var(--mut);width:14px">${String(x+1).padStart(2,'0')}</div><div class="gav">${ini(gp)}</div><div class="gin"><div class="gnm">${gp}</div><div class="gst"><span class="gsp gt">${i.t}</span>${i.w?`<span class="gsp gw">${i.w}⏳</span>`:''}${i.f?`<span class="gsp gr">${i.f}❌</span>`:''}</div></div></div>`).join('');
+}
+
+// ══ RENDER DAILY ══════════════════════════════════════
+function renderDaily(){
+  const m={};
+  DATA.forEach(r=>{const d=(r.date||'').slice(0,10);if(d)m[d]=(m[d]||0)+1});
+  const s=Object.entries(m).sort((a,b)=>a[0].localeCompare(b[0]));
+  if(!s.length){document.getElementById('dbars').innerHTML='';return}
+  const mx=Math.max(...s.map(([,n])=>n)),last=s[s.length-1]?.[0]||'';
+  document.getElementById('dbars').innerHTML=s.map(([d,n])=>`<div class="dc3"><div class="db2 ${d===last?'hi':''}" style="height:${Math.round(n/mx*80)+10}%" data-c="${n}"></div><div class="dlb">${d.slice(5).replace('-','/')}</div></div>`).join('');
+  document.getElementById('bd-d').textContent=`${s.length} يوم · ذروة ${mx}`;
+}
+
+// ══ FILTERS ═══════════════════════════════════════════
+function fltKPI(s){AGP='';document.querySelectorAll('.kpi').forEach(k=>k.classList.remove('ak'));document.getElementById({'all':'k-a','Wait Consultant':'k-wc','Refused':'k-rf','Wait Invoice':'k-wv'}[s]||'k-a').classList.add('ak');setSt(s)}
+function fltSt(s){AGP='';setSt(s)}
+function fltGP(g){AGP=AGP===g?'':g;setSt('all')}
+function setSt(s){
+  AST=s;
+  document.querySelectorAll('.fc').forEach(c=>{c.classList.remove('a');if(c.dataset.s===s)c.classList.add('a')});
+  applyF();
+}
+
+// ══ APPLY FILTERS ═════════════════════════════════════
+function applyF(){
+  FILT=DATA.filter(r=>{
+    if(AST!=='all'&&r.status!==AST)return false;
+    if(AGP&&r.gp!==AGP)return false;
+    if(SQ&&!r.patient.toLowerCase().includes(SQ)&&!String(r.id).includes(SQ)&&!r.ptid.includes(SQ)&&!r.gp.toLowerCase().includes(SQ))return false;
+    return true;
+  });
+  FILT.sort((a,b)=>{
+    const av=a[SK],bv=b[SK];
+    if(SK==='date')return(new Date(av)-new Date(bv))*SD;
+    if(typeof av==='number')return(av-bv)*SD;
+    return av.toString().localeCompare(bv.toString())*SD;
+  });
+  PG=1;
+  renderTable();renderDonut();renderGP();genReport();
+}
+
+// ══ TABLE ═════════════════════════════════════════════
+function renderTable(){
+  const tot=FILT.length,st=(PG-1)*PZ,sl=FILT.slice(st,st+PZ);
+  const lbl=AGP?AGP:AST==='all'?'جميع الطلبات':STAR[AST]||AST;
+  document.getElementById('tcn').textContent=tot+' سجل';
+  document.getElementById('ttl').textContent=lbl;
+  document.getElementById('empty').classList.toggle('show',!tot);
+  document.getElementById('tbody').innerHTML=sl.map(r=>{
+    const sc=SCS[r.status]||'',ac=ACS[r.approval]||'pn',cc=CCS[r.company]||'cx2';
+    return`<tr><td class="tid">#${r.id}</td><td class="tdt">${fmD(r.date)}</td><td><div class="tpat">${r.patient}</div><div class="tptid">${r.ptid}</div></td><td><span class="pill ${sc}">${STAR[r.status]||r.status||'—'}</span></td><td><span class="${ac}">${ACAR[r.approval]||r.approval||'—'}</span></td><td style="font-size:9px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.gp}</td><td><span class="co ${cc}">${r.company}</span></td></tr>`;
+  }).join('');
+  renderPag(tot);
+  document.getElementById('pinf').textContent=`${Math.min(st+1,tot)||0}–${Math.min(st+PZ,tot)} من ${tot}`;
+}
+function renderPag(tot){
+  const pages=Math.ceil(tot/PZ);
+  let h=`<button class="pb" onclick="goPg(${PG-1})" ${PG===1?'disabled':''}>‹</button>`;
+  for(let p=1;p<=pages;p++){if(pages<=7||Math.abs(p-PG)<=1||p===1||p===pages)h+=`<button class="pb ${p===PG?'a':''}" onclick="goPg(${p})">${p}</button>`;else if(Math.abs(p-PG)===2)h+=`<button class="pb" disabled>…</button>`;}
+  h+=`<button class="pb" onclick="goPg(${PG+1})" ${PG===pages||!pages?'disabled':''}>›</button>`;
+  document.getElementById('pbs').innerHTML=h;
+}
+function goPg(p){const mx=Math.ceil(FILT.length/PZ);if(p<1||p>mx)return;PG=p;renderTable()}
+function srt(k){SK===k?SD*=-1:(SK=k,SD=-1);applyF()}
+
+// ══ REPORT ════════════════════════════════════════════
+function genReport(){
+  const el=document.getElementById('rtxt'),ld=document.getElementById('rld');
+  ld.style.display='flex';el.innerHTML='';
+  setTimeout(()=>{ld.style.display='none';el.innerHTML=mkReport();},250);
+}
+
+function mkReport(){
+  const tot=FILT.length;
+  if(!tot)return'<span style="color:var(--mut)">لا توجد سجلات.</span>';
+  const isGP=!!AGP;
+  const lbl=isGP?AGP:AST==='all'?'الكل':STAR[AST]||AST;
+  document.getElementById('rtg').textContent=lbl;
+
+  // stats
+  const ap=cn(FILT,'approval','Approved'),rj=cn(FILT,'approval','Rejected');
+  const wt=FILT.filter(r=>r.approval==='Waiting Insurance Reply').length;
+  const apR=pt(ap,tot),rjR=pt(rj,tot);
+
+  // company
+  const coM={};FILT.forEach(r=>coM[r.company]=(coM[r.company]||0)+1);
+  const coS=Object.entries(coM).sort((a,b)=>b[1]-a[1]);
+
+  // status
+  const stM={};FILT.forEach(r=>stM[r.status]=(stM[r.status]||0)+1);
+  const stS=Object.entries(stM).sort((a,b)=>b[1]-a[1]);
+
+  // GP
+  const gpM={};
+  FILT.forEach(r=>{if(!gpM[r.gp])gpM[r.gp]={t:0,st:{}};gpM[r.gp].t++;gpM[r.gp].st[r.status]=(gpM[r.gp].st[r.status]||0)+1;});
+  const gpS=Object.entries(gpM).sort((a,b)=>b[1].t-a[1].t);
+
+  // dates
+  const ds=FILT.map(r=>new Date(r.date)).filter(d=>!isNaN(d)).sort((a,b)=>a-b);
+  const dMn=ds[0]?shD(ds[0]):'—',dMx=ds[ds.length-1]?shD(ds[ds.length-1]):'—';
+
+  const cRow=(r,i)=>`${String(i+1).padStart(2,'0')}. *${r.patient||'—'}*  [${r.ptid||'—'}]\n    👨‍⚕️ ${r.gp||'—'}  •  ${r.company||'—'} ${APEM[r.approval]||'➖'}`;
+  const ALL_ST=['Wait Consultant','Refused','Wait Invoice','Wait Insurance','Completed'];
+
+  let plain='';
+
+  if(isGP){
+    let cb='';
+    ALL_ST.forEach(st=>{const list=FILT.filter(r=>r.status===st);if(!list.length)return;cb+=`\n${STEM[st]||'⚪'} *${STAR[st]||st}* (${list.length})\n${list.map((r,i)=>cRow(r,i)).join('\n')}\n`;});
+    plain=`🏥 *تقرير الطبيب*\n👨‍⚕️ *${AGP}*\n📅 ${dMn} ← ${dMx}  |  *${tot}* طلب\n─────────────────────\n${stS.map(([s,n])=>`${STEM[s]||'⚪'} ${STAR[s]||s}: *${n}*`).join('\n')}\n─────────────────────\n✅ موافق *${ap}* (${apR}%)  ❌ مرفوض *${rj}*  ⏳ انتظار *${wt}*\n🏢 ${coS.map(([c,n])=>`${COEM[c]||'⚪'} ${c} *${n}*`).join('  ')}\n─────────────────────\n📋 *المرضى*\n${cb}${cn(FILT,'status','Wait Consultant')>0?`⚠️ *${cn(FILT,'status','Wait Consultant')} حالة* تنتظر الاستشاري\n`:''}${apR<70?`⚠️ نسبة موافقة *${apR}%* دون المعيار\n`:''}`;
+  }else{
+    const gpLn=gpS.map(([gp,inf])=>`👨‍⚕️ *${gp.split(' ').slice(0,3).join(' ')}* (${inf.t})  ${Object.entries(inf.st).sort((a,b)=>b[1]-a[1]).map(([s,n])=>`${STEM[s]||'⚪'}${n}`).join(' ')}`).join('\n');
+    let cb='';
+    if(AST!=='all'){
+      cb=`${STEM[AST]||'⚪'} *${STAR[AST]||AST}* (${tot})\n${FILT.map((r,i)=>cRow(r,i)).join('\n')}`;
+    }else{
+      ALL_ST.forEach(st=>{const list=FILT.filter(r=>r.status===st);if(!list.length)return;cb+=`\n${STEM[st]||'⚪'} *${STAR[st]||st}* (${list.length})\n${list.map((r,i)=>cRow(r,i)).join('\n')}\n`;});
+    }
+    const title=AST==='all'?'التقرير الإجمالي':STAR[AST]||AST;
+    plain=`🏥 *FutureCare — ${title}*\n📅 ${dMn} ← ${dMx}  |  *${tot}* طلب\n─────────────────────\n${stS.map(([s,n])=>`${STEM[s]||'⚪'} ${STAR[s]||s}: *${n}* (${pt(n,tot)}%)`).join('\n')}\n─────────────────────\n✅ موافق *${ap}* (${apR}%)  ❌ مرفوض *${rj}*  ⏳ انتظار *${wt}*\n🏢 ${coS.map(([c,n])=>`${COEM[c]||'⚪'} ${c} *${n}*`).join('  ')}\n─────────────────────\n*الأطباء*\n${gpLn}\n─────────────────────\n📋 *المرضى*\n${cb}\n${cn(FILT,'status','Wait Consultant')>0?`⚠️ *${cn(FILT,'status','Wait Consultant')} حالة* بانتظار الاستشاري`:''}\n${cn(FILT,'status','Refused')>0?`❌ *${cn(FILT,'status','Refused')} طلب* مرفوض (${rjR}%)`:''}`.replace(/\n{3,}/g,'\n\n');
+  }
+
+  window._RPT=plain;
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return esc(plain)
+    .replace(/\*([^*\n]+)\*/g,'<strong style="color:var(--txt)">$1</strong>')
+    .replace(/\[(\d+)\]/g,'[<span style="color:var(--acc);font-family:var(--fm);font-weight:700">$1</span>]')
+    .replace(/(─+)/g,'<span style="color:var(--bdr)">$1</span>');
+}
+
+function cpReport(){
+  const btn=document.getElementById('cpbtn'),t=window._RPT||'';
+  if(!t)return;
+  const go=()=>{btn.textContent='✓ تم النسخ!';btn.classList.add('cp');setTimeout(()=>{btn.textContent='⎘ نسخ للواتساب';btn.classList.remove('cp')},2500)};
+  navigator.clipboard.writeText(t).then(go).catch(()=>{const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);go()});
+}
+
+// ══ EVENTS ════════════════════════════════════════════
+document.getElementById('fb').addEventListener('click',e=>{
+  const c=e.target.closest('.fc');if(!c)return;
+  AGP='';document.querySelectorAll('.fc').forEach(x=>x.classList.remove('a'));c.classList.add('a');AST=c.dataset.s;applyF();
+});
+document.getElementById('srch').addEventListener('input',e=>{SQ=e.target.value.toLowerCase().trim();applyF()});
+
+function renderAll(){renderKPI();renderDonut();renderCompany();renderGP();renderDaily();applyF()}
+</script>
+</body>
+</html>
