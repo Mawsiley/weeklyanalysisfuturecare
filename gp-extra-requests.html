@@ -164,6 +164,7 @@ tbody td{padding:9px 13px;font-size:10px;color:var(--dim);vertical-align:middle}
 .cc,.dc2,.rp,.tc{animation:fu .3s .12s ease both}
 @media(max-width:1100px){.kg{grid-template-columns:repeat(3,1fr)}.crow{grid-template-columns:1fr 1fr}}
 @media(max-width:700px){.main{padding:12px}.kg{grid-template-columns:1fr 1fr}.crow{grid-template-columns:1fr}}
+.spbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.spbar select{background:var(--sur);color:var(--txt);border:1px solid var(--bdr);border-radius:9px;padding:8px 11px;min-width:230px}.spnote{color:var(--mut);font-size:10px;margin-right:auto}.spname{font-weight:800;color:var(--acc)}
 </style>
 </head>
 <body>
@@ -217,6 +218,12 @@ tbody td{padding:9px 13px;font-size:10px;color:var(--dim);vertical-align:middle}
       <div class="cc"><div class="ctt">شركات التأمين <span class="cbg" id="bd-c">—</span></div><div class="cb" id="cobars"></div></div>
       <div class="cc"><div class="ctt">الأطباء <span class="cbg">اضغط للتصفية</span></div><div class="gpl" id="gpl"></div></div>
     </div>
+    <div class="st">متابعة طلبات الاختصاصيين حسب الرقم الوظيفي</div>
+    <div class="tc">
+      <div class="spbar"><select id="spFilter" onchange="fltSpecialist(this.value)"><option value="">كل الاختصاصيين</option></select><button class="nbtn" onclick="exportSpecialistExcel()">⬇ Excel متابعة الاختصاصيين</button><span class="spnote">كل صف يوضح الاختصاصي المطلوب والطبيب الذي رفع الطلب.</span></div>
+      <div style="overflow-x:auto"><table><thead><tr><th>رقم الاختصاصي</th><th>الاختصاصي المطلوب</th><th>التخصص</th><th>رقم الطبيب الرافع</th><th>الطبيب الذي رفع الطلب</th><th>إجمالي الطلبات</th><th>بانتظار الاستشاري</th><th>مرفوض</th><th>مكتمل</th></tr></thead><tbody id="specialistBody"></tbody></table></div>
+      <div class="empty" id="specialistEmpty"><div style="font-size:28px;margin-bottom:6px">🩺</div>لا توجد بيانات اختصاصي مطلوبة في الملف.</div>
+    </div>
     <div class="st">التوزيع اليومي</div>
     <div class="dc2"><div class="ctt">الطلبات يومياً <span class="cbg" id="bd-d">—</span></div><div class="dbs" id="dbars"></div></div>
     <div class="st">تقرير واتساب</div>
@@ -235,13 +242,13 @@ tbody td{padding:9px 13px;font-size:10px;color:var(--dim);vertical-align:middle}
       <button class="fc fco" data-s="Completed">مكتمل</button>
       <input class="si" type="text" placeholder="🔍 بحث…" id="srch">
     </div>
-    <div class="tc"><div class="th2"><div class="ttl" id="ttl">جميع الطلبات</div><div class="tcn" id="tcn">—</div></div><div style="overflow-x:auto"><table><thead><tr><th onclick="srt('id')">ID ⇅</th><th onclick="srt('date')">التاريخ ⇅</th><th>المريض</th><th onclick="srt('status')">الحالة ⇅</th><th>الموافقة</th><th onclick="srt('gpId')">الرقم الوظيفي ⇅</th><th onclick="srt('gp')">الطبيب ⇅</th><th>الاختصاصي</th><th onclick="srt('company')">التأمين ⇅</th></tr></thead><tbody id="tbody"></tbody></table></div><div class="empty" id="empty"><div style="font-size:32px;margin-bottom:8px">🔍</div>لا توجد نتائج.</div><div class="pagi"><div id="pinf">—</div><div class="pbs" id="pbs"></div></div></div>
+    <div class="tc"><div class="th2"><div class="ttl" id="ttl">جميع الطلبات</div><div class="tcn" id="tcn">—</div></div><div style="overflow-x:auto"><table><thead><tr><th onclick="srt('id')">ID ⇅</th><th onclick="srt('date')">التاريخ ⇅</th><th>المريض</th><th onclick="srt('status')">الحالة ⇅</th><th>الموافقة</th><th onclick="srt('gpId')">رقم الطبيب الرافع ⇅</th><th onclick="srt('gp')">الطبيب الذي رفع الطلب ⇅</th><th>رقم الاختصاصي</th><th>الاختصاصي المطلوب</th><th>التخصص</th><th onclick="srt('company')">التأمين ⇅</th></tr></thead><tbody id="tbody"></tbody></table></div><div class="empty" id="empty"><div style="font-size:32px;margin-bottom:8px">🔍</div>لا توجد نتائج.</div><div class="pagi"><div id="pinf">—</div><div class="pbs" id="pbs"></div></div></div>
   </div>
 </div>
 
 <script>
 // ══ STATE & MAPS ══════════════════════════════════════
-let DATA=[], FILT=[], AST='all', AGP='', SQ='', SK='date', SD=-1, PG=1;
+let DATA=[], FILT=[], AST='all', AGP='', ASP='', SQ='', SK='date', SD=-1, PG=1;
 const PZ=20;
 const GP_DIRECTORY_KEY='futurecare-doctor-directory-v1';
 const GP_DIRECTORY_DEFAULT=[
@@ -263,8 +270,16 @@ const GP_NAME_ALIASES={
   alasiddigabdelwahabibrahim:'347',alaasiddigabdelwahabibrahim:'347',
   ryanomeralibadwi:'1121'
 };
+const SPECIALIST_DIRECTORY=[
+  {staffId:'1225',name:'Dr Islam',specialty:'Internal Medicine / باطنة'},
+  {staffId:'1133',name:'Dr Nada',specialty:'Respiratory Therapy / علاج تنفسي'},
+  {staffId:'465',name:'Dr Ruqaya',specialty:'Internal Medicine / باطنة'},
+  {staffId:'1082',name:'Dr Mahmoud',specialty:'Orthopedics / عظام'},
+  {staffId:'1029',name:'Dr Naseem',specialty:'Clinical Nutrition / تغذية'}
+];
 function gpDirectory(){try{const d=JSON.parse(localStorage.getItem(GP_DIRECTORY_KEY)||'null');return Array.isArray(d)&&d.length?d:GP_DIRECTORY_DEFAULT}catch{return GP_DIRECTORY_DEFAULT}}
 function identifyDoctor(raw,externalRaw){const value=String(raw??'').trim(),id=cleanStaffId(value),dir=gpDirectory(),aliasId=GP_NAME_ALIASES[gpKey(value)],d=dir.find(x=>cleanStaffId(x.staffId)===id)||dir.find(x=>gpKey(x.name)===gpKey(value))||dir.find(x=>cleanStaffId(x.staffId)===aliasId);return{gpId:d?.staffId||(/^\d+$/.test(id)?id:''),gp:d?.name||value||'غير محدد',specialist:d?.specialist||'Dr Ruqaya (465)',matched:!!d,sourceGp:value,externalDoctorId:cleanStaffId(externalRaw)}}
+function identifySpecialist(raw){const value=String(raw??'').trim(),id=cleanStaffId(value),key=gpKey(value),d=SPECIALIST_DIRECTORY.find(x=>x.staffId===id)||SPECIALIST_DIRECTORY.find(x=>key.includes(gpKey(x.name))||key.includes(gpKey(x.specialty.split('/')[0])));return{requestedSpecialistId:d?.staffId||(/^\d+$/.test(id)?id:''),requestedSpecialistName:d?.name||value||'غير محدد',requestedSpecialty:d?.specialty||'غير محدد',specialistMatched:!!d}}
 
 const SM={0:'Refused',1:'Wait Insurance',4:'Wait Consultant',5:'Wait Invoice',6:'Completed'};
 const AM={'مقبول':'Approved','مرفوض':'Rejected','غير مطلوب':'Not Required',
@@ -402,14 +417,14 @@ function processRows(rows, fname){
   }
 
   const COL={
-    id:       getCol('RequestID','Request ID','ID','id','رقم الطلب'),
-    date:     getCol('RequestDate','Request Date','Date','التاريخ'),
+    id:       getCol('RequestID','Request ID','ID','id','S/N','SN','رقم الطلب'),
+    date:     getCol('RequestDate','Request Date','Created Date','Creation Date','Date','التاريخ'),
     ptid:     getCol('PTID','PatientID','Patient ID','رقم الملف','رقم المريض'),
     patient:  getCol('PatientName','Patient Name','Patient','المريض','اسم المريض'),
     status:   getCol('Status','الحالة','حالة الطلب'),
     approval: getCol('ApprovalStatus','Approval Status','Approval','الموافقة','حالة الموافقة'),
-    gp:       getCol('GP','Gp','الطبيب','الدكتور','gp'),
-    externalDoctor:getCol('External Doctor','ExternalDoctor','Specialist','Consultant','الطبيب الخارجي','الاختصاصي'),
+    gp:       getCol('GP','Gp','Doctor Name','Doctor','Raised By','Created By','Request By','Request Doctor','الطبيب','الدكتور','رافع الطلب','الطبيب الرافع','gp'),
+    externalDoctor:getCol('External Doctor','ExternalDoctor','External Doctor ID','Specialist ID','Consultant ID','Specialist','Consultant','الطبيب الخارجي','رقم الاختصاصي','الاختصاصي'),
     company:  getCol('InsuranceCompany','Insurance Company','Company','شركة التأمين','التأمين'),
   };
   dbg('Column map: '+JSON.stringify(COL));
@@ -430,7 +445,7 @@ function processRows(rows, fname){
     const company=COL.company?(String(r[COL.company]||'').trim()||'غير محدد'):'غير محدد';
     const co=company==='غير محدد'||company===''?'غير محدد':company;
 
-    const doctor=identifyDoctor(COL.gp?r[COL.gp]:'',COL.externalDoctor?r[COL.externalDoctor]:'');
+    const externalRaw=COL.externalDoctor?r[COL.externalDoctor]:'',doctor=identifyDoctor(COL.gp?r[COL.gp]:'',externalRaw),requested=identifySpecialist(externalRaw);
     return{
       id:      Number(COL.id?r[COL.id]:0)||i+1,
       date:    COL.date?String(r[COL.date]||''):'',
@@ -444,6 +459,10 @@ function processRows(rows, fname){
       doctorMatched:doctor.matched,
       sourceGp:doctor.sourceGp,
       externalDoctorId:doctor.externalDoctorId,
+      requestedSpecialistId:requested.requestedSpecialistId,
+      requestedSpecialistName:requested.requestedSpecialistName,
+      requestedSpecialty:requested.requestedSpecialty,
+      specialistMatched:requested.specialistMatched,
       company: co,
     };
   }).filter(r=>r.patient||r.id>0);
@@ -457,7 +476,7 @@ function processRows(rows, fname){
   document.getElementById('uscreen').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('cfil').textContent=fname;
-  AST='all'; AGP=''; SQ=''; PG=1; SK='date'; SD=-1;
+  AST='all'; AGP=''; ASP=''; SQ=''; PG=1; SK='date'; SD=-1;
   document.querySelectorAll('.fc').forEach(c=>{c.classList.remove('a');if(c.dataset.s==='all')c.classList.add('a')});
   renderAll();
 }
@@ -513,6 +532,11 @@ function renderGP(){
   document.getElementById('gpl').innerHTML=s.map(([gp,i],x)=>`<div class="gpr ${AGP===gp?'af':''}" onclick="fltGP('${gp.replace(/'/g,"\\'")}')"><div style="font-family:var(--fm);font-size:9px;color:var(--mut);width:14px">${String(x+1).padStart(2,'0')}</div><div class="gav">${ini(gp)}</div><div class="gin"><div class="gnm">${i.gpId||'—'} — ${gp}</div><div style="font-size:8px;color:var(--mut);margin-top:2px">${i.specialist}</div><div class="gst"><span class="gsp gt">${i.t}</span>${i.w?`<span class="gsp gw">${i.w}⏳</span>`:''}${i.f?`<span class="gsp gr">${i.f}❌</span>`:''}</div></div></div>`).join('');
 }
 
+// ══ SPECIALIST FOLLOW-UP BY STAFF ID & REQUESTING GP ══
+function specialistPairs(a=DATA){const m=new Map;for(const r of a){const sid=r.requestedSpecialistId||'غير محدد',sname=r.requestedSpecialistName||'غير محدد',gid=r.gpId||'غير محدد',key=`${sid}||${gid}||${r.gp}`;if(!m.has(key))m.set(key,{specialistId:sid,specialistName:sname,specialty:r.requestedSpecialty||'غير محدد',gpId:gid,gp:r.gp||'غير محدد',total:0,wait:0,refused:0,completed:0});const x=m.get(key);x.total++;if(r.status==='Wait Consultant')x.wait++;if(r.status==='Refused')x.refused++;if(r.status==='Completed')x.completed++}return[...m.values()].sort((a,b)=>String(a.specialistId).localeCompare(String(b.specialistId),undefined,{numeric:true})||b.total-a.total)}
+function renderSpecialists(){const sel=document.getElementById('spFilter'),old=ASP,opts=[...new Map(DATA.filter(r=>r.requestedSpecialistId).map(r=>[r.requestedSpecialistId,`${r.requestedSpecialistId} — ${r.requestedSpecialistName}`])).entries()];sel.innerHTML='<option value="">كل الاختصاصيين</option>'+opts.map(([id,n])=>`<option value="${id}" ${id===old?'selected':''}>${n}</option>`).join('');const a=specialistPairs(FILT),body=document.getElementById('specialistBody');body.innerHTML=a.map(x=>`<tr><td class="tid">${x.specialistId}</td><td class="spname">${x.specialistName}</td><td>${x.specialty}</td><td class="tid">${x.gpId}</td><td>${x.gp}</td><td><span class="pill pi">${x.total}</span></td><td><span class="pill pw">${x.wait}</span></td><td><span class="pill ps">${x.refused}</span></td><td><span class="pill pc">${x.completed}</span></td></tr>`).join('');document.getElementById('specialistEmpty').classList.toggle('show',!a.length)}
+function fltSpecialist(id){ASP=id;applyF()}
+
 // ══ RENDER DAILY ══════════════════════════════════════
 function renderDaily(){
   const m={};
@@ -539,7 +563,8 @@ function applyF(){
   FILT=DATA.filter(r=>{
     if(AST!=='all'&&r.status!==AST)return false;
     if(AGP&&r.gp!==AGP)return false;
-    if(SQ&&!r.patient.toLowerCase().includes(SQ)&&!String(r.id).includes(SQ)&&!r.ptid.includes(SQ)&&!r.gp.toLowerCase().includes(SQ)&&!r.gpId.includes(SQ)&&!r.specialist.toLowerCase().includes(SQ))return false;
+    if(ASP&&r.requestedSpecialistId!==ASP)return false;
+    if(SQ&&!r.patient.toLowerCase().includes(SQ)&&!String(r.id).includes(SQ)&&!r.ptid.includes(SQ)&&!r.gp.toLowerCase().includes(SQ)&&!r.gpId.includes(SQ)&&!r.specialist.toLowerCase().includes(SQ)&&!r.requestedSpecialistId.includes(SQ)&&!r.requestedSpecialistName.toLowerCase().includes(SQ))return false;
     return true;
   });
   FILT.sort((a,b)=>{
@@ -549,7 +574,7 @@ function applyF(){
     return av.toString().localeCompare(bv.toString())*SD;
   });
   PG=1;
-  renderTable();renderDonut();renderGP();genReport();
+  renderTable();renderDonut();renderGP();renderSpecialists();genReport();
 }
 
 // ══ TABLE ═════════════════════════════════════════════
@@ -561,7 +586,7 @@ function renderTable(){
   document.getElementById('empty').classList.toggle('show',!tot);
   document.getElementById('tbody').innerHTML=sl.map(r=>{
     const sc=SCS[r.status]||'',ac=ACS[r.approval]||'pn',cc=CCS[r.company]||'cx2';
-    return`<tr><td class="tid">#${r.id}</td><td class="tdt">${fmD(r.date)}</td><td><div class="tpat">${r.patient}</div><div class="tptid">${r.ptid}</div></td><td><span class="pill ${sc}">${STAR[r.status]||r.status||'—'}</span></td><td><span class="${ac}">${ACAR[r.approval]||r.approval||'—'}</span></td><td class="tid">${r.gpId||'—'}</td><td style="font-size:9px;max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.gp}">${r.gp}</td><td style="font-size:9px;white-space:nowrap">${r.specialist}</td><td><span class="co ${cc}">${r.company}</span></td></tr>`;
+    return`<tr><td class="tid">#${r.id}</td><td class="tdt">${fmD(r.date)}</td><td><div class="tpat">${r.patient}</div><div class="tptid">${r.ptid}</div></td><td><span class="pill ${sc}">${STAR[r.status]||r.status||'—'}</span></td><td><span class="${ac}">${ACAR[r.approval]||r.approval||'—'}</span></td><td class="tid">${r.gpId||'—'}</td><td style="font-size:9px;max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.gp}">${r.gp}</td><td class="tid">${r.requestedSpecialistId||'—'}</td><td style="font-size:9px;white-space:nowrap">${r.requestedSpecialistName||'—'}</td><td style="font-size:9px;white-space:nowrap">${r.requestedSpecialty||'—'}</td><td><span class="co ${cc}">${r.company}</span></td></tr>`;
   }).join('');
   renderPag(tot);
   document.getElementById('pinf').textContent=`${Math.min(st+1,tot)||0}–${Math.min(st+PZ,tot)} من ${tot}`;
@@ -607,12 +632,13 @@ function mkReport(){
   const gpM={};
   FILT.forEach(r=>{if(!gpM[r.gp])gpM[r.gp]={t:0,st:{}};gpM[r.gp].t++;gpM[r.gp].st[r.status]=(gpM[r.gp].st[r.status]||0)+1;});
   const gpS=Object.entries(gpM).sort((a,b)=>b[1].t-a[1].t);
+  const spS=specialistPairs(FILT),spLn=spS.map(x=>`🩺 *${x.specialistId} — ${x.specialistName}* ← ${x.gpId} — ${x.gp}: *${x.total}* طلب (${x.wait} انتظار، ${x.refused} مرفوض، ${x.completed} مكتمل)`).join('\n');
 
   // dates
   const ds=FILT.map(r=>new Date(r.date)).filter(d=>!isNaN(d)).sort((a,b)=>a-b);
   const dMn=ds[0]?shD(ds[0]):'—',dMx=ds[ds.length-1]?shD(ds[ds.length-1]):'—';
 
-  const cRow=(r,i)=>`${String(i+1).padStart(2,'0')}. *${r.patient||'—'}*  [${r.ptid||'—'}]\n    👨‍⚕️ ${r.gpId||'—'} — ${r.gp||'—'}  •  الاختصاصي: ${r.specialist||'—'}  •  ${r.company||'—'} ${APEM[r.approval]||'➖'}`;
+  const cRow=(r,i)=>`${String(i+1).padStart(2,'0')}. *${r.patient||'—'}*  [${r.ptid||'—'}]\n    👨‍⚕️ رفعه: ${r.gpId||'—'} — ${r.gp||'—'}  •  🩺 المطلوب: ${r.requestedSpecialistId||'—'} — ${r.requestedSpecialistName||'—'}  •  ${r.company||'—'} ${APEM[r.approval]||'➖'}`;
   const ALL_ST=['Wait Consultant','Refused','Wait Invoice','Wait Insurance','Completed'];
 
   let plain='';
@@ -620,7 +646,7 @@ function mkReport(){
   if(isGP){
     let cb='';
     ALL_ST.forEach(st=>{const list=FILT.filter(r=>r.status===st);if(!list.length)return;cb+=`\n${STEM[st]||'⚪'} *${STAR[st]||st}* (${list.length})\n${list.map((r,i)=>cRow(r,i)).join('\n')}\n`;});
-    plain=`🏥 *تقرير الطبيب*\n👨‍⚕️ *${AGP}*\n📅 ${dMn} ← ${dMx}  |  *${tot}* طلب\n─────────────────────\n${stS.map(([s,n])=>`${STEM[s]||'⚪'} ${STAR[s]||s}: *${n}*`).join('\n')}\n─────────────────────\n✅ موافق *${ap}* (${apR}%)  ❌ مرفوض *${rj}*  ⏳ انتظار *${wt}*\n🏢 ${coS.map(([c,n])=>`${COEM[c]||'⚪'} ${c} *${n}*`).join('  ')}\n─────────────────────\n📋 *المرضى*\n${cb}${cn(FILT,'status','Wait Consultant')>0?`⚠️ *${cn(FILT,'status','Wait Consultant')} حالة* تنتظر الاستشاري\n`:''}${apR<70?`⚠️ نسبة موافقة *${apR}%* دون المعيار\n`:''}`;
+    plain=`🏥 *تقرير الطبيب الرافع للطلبات*\n👨‍⚕️ *${AGP}*\n📅 ${dMn} ← ${dMx}  |  *${tot}* طلب\n─────────────────────\n${stS.map(([s,n])=>`${STEM[s]||'⚪'} ${STAR[s]||s}: *${n}*`).join('\n')}\n─────────────────────\n✅ موافق *${ap}* (${apR}%)  ❌ مرفوض *${rj}*  ⏳ انتظار *${wt}*\n🏢 ${coS.map(([c,n])=>`${COEM[c]||'⚪'} ${c} *${n}*`).join('  ')}\n─────────────────────\n*الاختصاصيون المطلوبون حسب الرقم الوظيفي*\n${spLn||'—'}\n─────────────────────\n📋 *المرضى*\n${cb}${cn(FILT,'status','Wait Consultant')>0?`⚠️ *${cn(FILT,'status','Wait Consultant')} حالة* تنتظر الاستشاري\n`:''}${apR<70?`⚠️ نسبة موافقة *${apR}%* دون المعيار\n`:''}`;
   }else{
     const gpLn=gpS.map(([gp,inf])=>`👨‍⚕️ *${gp.split(' ').slice(0,3).join(' ')}* (${inf.t})  ${Object.entries(inf.st).sort((a,b)=>b[1]-a[1]).map(([s,n])=>`${STEM[s]||'⚪'}${n}`).join(' ')}`).join('\n');
     let cb='';
@@ -630,7 +656,7 @@ function mkReport(){
       ALL_ST.forEach(st=>{const list=FILT.filter(r=>r.status===st);if(!list.length)return;cb+=`\n${STEM[st]||'⚪'} *${STAR[st]||st}* (${list.length})\n${list.map((r,i)=>cRow(r,i)).join('\n')}\n`;});
     }
     const title=AST==='all'?'التقرير الإجمالي':STAR[AST]||AST;
-    plain=`🏥 *FutureCare — ${title}*\n📅 ${dMn} ← ${dMx}  |  *${tot}* طلب\n─────────────────────\n${stS.map(([s,n])=>`${STEM[s]||'⚪'} ${STAR[s]||s}: *${n}* (${pt(n,tot)}%)`).join('\n')}\n─────────────────────\n✅ موافق *${ap}* (${apR}%)  ❌ مرفوض *${rj}*  ⏳ انتظار *${wt}*\n🏢 ${coS.map(([c,n])=>`${COEM[c]||'⚪'} ${c} *${n}*`).join('  ')}\n─────────────────────\n*الأطباء*\n${gpLn}\n─────────────────────\n📋 *المرضى*\n${cb}\n${cn(FILT,'status','Wait Consultant')>0?`⚠️ *${cn(FILT,'status','Wait Consultant')} حالة* بانتظار الاستشاري`:''}\n${cn(FILT,'status','Refused')>0?`❌ *${cn(FILT,'status','Refused')} طلب* مرفوض (${rjR}%)`:''}`.replace(/\n{3,}/g,'\n\n');
+    plain=`🏥 *FutureCare — ${title}*\n📅 ${dMn} ← ${dMx}  |  *${tot}* طلب\n─────────────────────\n${stS.map(([s,n])=>`${STEM[s]||'⚪'} ${STAR[s]||s}: *${n}* (${pt(n,tot)}%)`).join('\n')}\n─────────────────────\n✅ موافق *${ap}* (${apR}%)  ❌ مرفوض *${rj}*  ⏳ انتظار *${wt}*\n🏢 ${coS.map(([c,n])=>`${COEM[c]||'⚪'} ${c} *${n}*`).join('  ')}\n─────────────────────\n*الأطباء الذين رفعوا الطلبات*\n${gpLn}\n─────────────────────\n*الاختصاصيون المطلوبون حسب الرقم الوظيفي والطبيب الرافع*\n${spLn||'—'}\n─────────────────────\n📋 *المرضى*\n${cb}\n${cn(FILT,'status','Wait Consultant')>0?`⚠️ *${cn(FILT,'status','Wait Consultant')} حالة* بانتظار الاستشاري`:''}\n${cn(FILT,'status','Refused')>0?`❌ *${cn(FILT,'status','Refused')} طلب* مرفوض (${rjR}%)`:''}`.replace(/\n{3,}/g,'\n\n');
   }
 
   window._RPT=plain;
@@ -651,13 +677,16 @@ function cpReport(){
 async function exportFilteredExcel(){
   if(!FILT.length)return alert('لا توجد نتائج في الفلتر الحالي.');
   if(!window.XLSX)return alert('ارفع الملف أولاً حتى يتم تحميل مكتبة Excel.');
-  const aoa=[['Request ID','Request Date','PTID','Patient Name','Status','Approval','Staff ID','Doctor Name','Supervising Specialist','Insurance Company'],...FILT.map(r=>[r.id,r.date,r.ptid,r.patient,STAR[r.status]||r.status,ACAR[r.approval]||r.approval,r.gpId,r.gp,r.specialist,r.company]),[],['Active Filter','Value'],['Status',AST==='all'?'All':STAR[AST]||AST],['Doctor',AGP||'All'],['Search',SQ||'—'],['Exported Records',FILT.length],[],['Staff ID','Doctor Name','Supervising Specialist'],...gpDirectory().map(d=>[d.staffId,d.name,d.specialist])];
-  const ws=XLSX.utils.aoa_to_sheet(aoa),rg=XLSX.utils.decode_range(ws['!ref']);ws['!autofilter']={ref:`A1:J${FILT.length+1}`};ws['!freeze']={ySplit:1};ws['!cols']=[12,22,12,30,22,18,12,34,24,22].map(w=>({wch:w}));
+  const aoa=[['Request ID','Request Date','PTID','Patient Name','Status','Approval','Requester Staff ID','Requesting Doctor','Requested Specialist ID','Requested Specialist','Specialty','Supervising Specialist','Insurance Company'],...FILT.map(r=>[r.id,r.date,r.ptid,r.patient,STAR[r.status]||r.status,ACAR[r.approval]||r.approval,r.gpId,r.gp,r.requestedSpecialistId,r.requestedSpecialistName,r.requestedSpecialty,r.specialist,r.company]),[],['Active Filter','Value'],['Status',AST==='all'?'All':STAR[AST]||AST],['Requesting Doctor',AGP||'All'],['Requested Specialist',ASP||'All'],['Search',SQ||'—'],['Exported Records',FILT.length],[],['Staff ID','Doctor Name','Supervising Specialist'],...gpDirectory().map(d=>[d.staffId,d.name,d.specialist])];
+  const ws=XLSX.utils.aoa_to_sheet(aoa),rg=XLSX.utils.decode_range(ws['!ref']);ws['!autofilter']={ref:`A1:M${FILT.length+1}`};ws['!freeze']={ySplit:1};ws['!cols']=[12,22,12,30,22,18,15,34,17,24,28,24,22].map(w=>({wch:w}));
   for(let c=0;c<=rg.e.c;c++){const cell=ws[XLSX.utils.encode_cell({r:0,c})];if(cell)cell.s={font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'0F4C81'}},alignment:{horizontal:'center'}}}
-  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Filtered GP Requests');
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Filtered GP Requests');appendSpecialistSheet(wb,FILT);
   const safe=(AGP||AST==='all'?'All':STAR[AST]||AST).replace(/[^\w\u0600-\u06FF-]+/g,'_').slice(0,45);
   XLSX.writeFile(wb,`GP_Extra_Requests_${safe}_${new Date().toISOString().slice(0,10)}.xlsx`,{compression:true});
 }
+
+function appendSpecialistSheet(wb,a){const pairs=specialistPairs(a),aoa=[['Specialist Staff ID','Requested Specialist','Specialty','Requester Staff ID','Requesting Doctor','Total Requests','Wait Consultant','Refused','Completed'],...pairs.map(x=>[x.specialistId,x.specialistName,x.specialty,x.gpId,x.gp,x.total,x.wait,x.refused,x.completed])],ws=XLSX.utils.aoa_to_sheet(aoa),rg=XLSX.utils.decode_range(ws['!ref']);ws['!autofilter']={ref:`A1:I${Math.max(1,pairs.length+1)}`};ws['!freeze']={ySplit:1};ws['!cols']=[18,25,30,18,35,15,18,12,12].map(w=>({wch:w}));for(let c=0;c<=rg.e.c;c++){const cell=ws[XLSX.utils.encode_cell({r:0,c})];if(cell)cell.s={font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'0F766E'}},alignment:{horizontal:'center'}}}XLSX.utils.book_append_sheet(wb,ws,'Specialist Follow-up')}
+function exportSpecialistExcel(){if(!FILT.length)return alert('لا توجد نتائج في الفلتر الحالي.');if(!window.XLSX)return alert('ارفع الملف أولاً.');const wb=XLSX.utils.book_new();appendSpecialistSheet(wb,FILT);const safe=(ASP||'All_Specialists').replace(/[^\w\u0600-\u06FF-]+/g,'_');XLSX.writeFile(wb,`GP_Specialist_Followup_${safe}_${new Date().toISOString().slice(0,10)}.xlsx`,{compression:true})}
 
 // ══ EVENTS ════════════════════════════════════════════
 document.getElementById('fb').addEventListener('click',e=>{
