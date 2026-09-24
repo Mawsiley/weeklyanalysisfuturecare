@@ -220,7 +220,7 @@ tbody td{padding:9px 13px;font-size:10px;color:var(--dim);vertical-align:middle}
     </div>
     <div class="st">متابعة طلبات الاختصاصيين حسب الرقم الوظيفي</div>
     <div class="tc">
-      <div class="spbar"><select id="spFilter" onchange="fltSpecialist(this.value)"><option value="">كل الاختصاصيين</option></select><button class="nbtn" onclick="exportSpecialistExcel()">⬇ Excel متابعة الاختصاصيين</button><span class="spnote">كل صف يوضح الاختصاصي المطلوب والطبيب الذي رفع الطلب.</span></div>
+      <div class="spbar"><select id="spFilter" onchange="fltSpecialist(this.value)"><option value="">كل الاختصاصيين</option></select><button class="nbtn" onclick="exportSpecialistExcel()">⬇ Excel متابعة الاختصاصيين</button><span class="spnote">العمود J = الرقم الوظيفي للاختصاصي المطلوب، ويُطابق تلقائيًا مع قاعدة الأطباء.</span></div>
       <div style="overflow-x:auto"><table><thead><tr><th>رقم الاختصاصي</th><th>الاختصاصي المطلوب</th><th>التخصص</th><th>رقم الطبيب الرافع</th><th>الطبيب الذي رفع الطلب</th><th>إجمالي الطلبات</th><th>بانتظار الاستشاري</th><th>مرفوض</th><th>مكتمل</th></tr></thead><tbody id="specialistBody"></tbody></table></div>
       <div class="empty" id="specialistEmpty"><div style="font-size:28px;margin-bottom:6px">🩺</div>لا توجد بيانات اختصاصي مطلوبة في الملف.</div>
     </div>
@@ -279,7 +279,7 @@ const SPECIALIST_DIRECTORY=[
 ];
 function gpDirectory(){try{const d=JSON.parse(localStorage.getItem(GP_DIRECTORY_KEY)||'null');return Array.isArray(d)&&d.length?d:GP_DIRECTORY_DEFAULT}catch{return GP_DIRECTORY_DEFAULT}}
 function identifyDoctor(raw,externalRaw){const value=String(raw??'').trim(),id=cleanStaffId(value),dir=gpDirectory(),aliasId=GP_NAME_ALIASES[gpKey(value)],d=dir.find(x=>cleanStaffId(x.staffId)===id)||dir.find(x=>gpKey(x.name)===gpKey(value))||dir.find(x=>cleanStaffId(x.staffId)===aliasId);return{gpId:d?.staffId||(/^\d+$/.test(id)?id:''),gp:d?.name||value||'غير محدد',specialist:d?.specialist||'Dr Ruqaya (465)',matched:!!d,sourceGp:value,externalDoctorId:cleanStaffId(externalRaw)}}
-function identifySpecialist(raw){const value=String(raw??'').trim(),id=cleanStaffId(value),key=gpKey(value),d=SPECIALIST_DIRECTORY.find(x=>x.staffId===id)||SPECIALIST_DIRECTORY.find(x=>key.includes(gpKey(x.name))||key.includes(gpKey(x.specialty.split('/')[0])));return{requestedSpecialistId:d?.staffId||(/^\d+$/.test(id)?id:''),requestedSpecialistName:d?.name||value||'غير محدد',requestedSpecialty:d?.specialty||'غير محدد',specialistMatched:!!d}}
+function identifySpecialist(raw){const value=String(raw??'').trim(),id=cleanStaffId(value),key=gpKey(value),doctor=gpDirectory().find(x=>cleanStaffId(x.staffId)===id)||gpDirectory().find(x=>gpKey(x.name)===key),d=SPECIALIST_DIRECTORY.find(x=>x.staffId===id)||SPECIALIST_DIRECTORY.find(x=>key.includes(gpKey(x.name))||key.includes(gpKey(x.specialty.split('/')[0])));return{requestedSpecialistId:d?.staffId||doctor?.staffId||(/^\d+$/.test(id)?id:''),requestedSpecialistName:d?.name||doctor?.name||value||'غير محدد',requestedSpecialty:d?.specialty||doctor?.specialist||'غير محدد',specialistMatched:!!(d||doctor)}}
 
 const SM={0:'Refused',1:'Wait Insurance',4:'Wait Consultant',5:'Wait Invoice',6:'Completed'};
 const AM={'مقبول':'Approved','مرفوض':'Rejected','غير مطلوب':'Not Required',
@@ -424,7 +424,7 @@ function processRows(rows, fname){
     status:   getCol('Status','الحالة','حالة الطلب'),
     approval: getCol('ApprovalStatus','Approval Status','Approval','الموافقة','حالة الموافقة'),
     gp:       getCol('GP','Gp','Doctor Name','Doctor','Raised By','Created By','Request By','Request Doctor','الطبيب','الدكتور','رافع الطلب','الطبيب الرافع','gp'),
-    externalDoctor:getCol('External Doctor','ExternalDoctor','External Doctor ID','Specialist ID','Consultant ID','Specialist','Consultant','الطبيب الخارجي','رقم الاختصاصي','الاختصاصي'),
+    externalDoctor:allKeys[9]||getCol('External Doctor','ExternalDoctor','External Doctor ID','Specialist ID','Consultant ID','Specialist','Consultant','الطبيب الخارجي','رقم الاختصاصي','الاختصاصي'),
     company:  getCol('InsuranceCompany','Insurance Company','Company','شركة التأمين','التأمين'),
   };
   dbg('Column map: '+JSON.stringify(COL));
