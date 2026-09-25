@@ -211,6 +211,7 @@ tbody td{padding:9px 13px;font-size:10px;color:var(--dim);vertical-align:middle}
       <div class="kpi" onclick="fltKPI('Refused')" id="k-rf"><div class="kgl" style="background:var(--red)"></div><div class="kl">مرفوض</div><div class="kv" id="kv-rf" style="color:var(--red)">0</div><div class="ks" id="ks-rf">—</div><div class="kb" id="kb-rf" style="background:var(--red)"></div></div>
       <div class="kpi" onclick="fltKPI('Wait Invoice')" id="k-wv"><div class="kgl" style="background:var(--tel)"></div><div class="kl">بانتظار الفاتورة</div><div class="kv" id="kv-wv" style="color:var(--tel)">0</div><div class="ks" id="ks-wv">—</div><div class="kb" id="kb-wv" style="background:var(--tel)"></div></div>
       <div class="kpi" id="k-rt"><div class="kgl" style="background:var(--grn)"></div><div class="kl">نسبة الموافقة</div><div class="kv" id="kv-rt" style="color:var(--grn)">0%</div><div class="ks">من الإجمالي</div><div class="kb" id="kb-rt" style="background:var(--grn)"></div></div>
+      <div class="kpi" onclick="fltSpecialist('__UNMAPPED__')" id="k-unk"><div class="kgl" style="background:var(--red)"></div><div class="kl">External Doctor غير معرّف</div><div class="kv" id="kv-unk" style="color:var(--red)">0</div><div class="ks" id="ks-unk">يحتاج تعريفًا في دليل الأطباء</div><div class="kb" id="kb-unk" style="background:var(--red)"></div></div>
     </div>
     <div class="st">تحليلات — اضغط الطبيب أو الحالة للتصفية</div>
     <div class="crow">
@@ -278,7 +279,7 @@ const SPECIALIST_DIRECTORY=[
   {staffId:'1082',name:'Dr Mahmoud',specialty:'Orthopedics / عظام'},
   {staffId:'1029',name:'Dr Naseem',specialty:'Clinical Nutrition / تغذية'}
 ];
-function gpDirectory(){try{const d=JSON.parse(localStorage.getItem(GP_DIRECTORY_KEY)||'null');return Array.isArray(d)&&d.length?d:GP_DIRECTORY_DEFAULT}catch{return GP_DIRECTORY_DEFAULT}}
+function gpDirectory(){const m=new Map(GP_DIRECTORY_DEFAULT.map(x=>[cleanStaffId(x.staffId),{...x}]));try{const d=JSON.parse(localStorage.getItem(GP_DIRECTORY_KEY)||'null');if(Array.isArray(d))d.forEach(x=>{const id=cleanStaffId(x?.staffId);if(id)m.set(id,{...m.get(id),...x,staffId:id})})}catch{}return[...m.values()]}
 function identifyDoctor(raw,externalRaw){const value=String(raw??'').trim(),id=cleanStaffId(value),dir=gpDirectory(),aliasId=GP_NAME_ALIASES[gpKey(value)],d=dir.find(x=>cleanStaffId(x.staffId)===id)||dir.find(x=>gpKey(x.name)===gpKey(value))||dir.find(x=>cleanStaffId(x.staffId)===aliasId);return{gpId:d?.staffId||(/^\d+$/.test(id)?id:''),gp:d?.name||value||'غير محدد',specialist:d?.specialist||'Dr Ruqaya (465)',matched:!!d,sourceGp:value,externalDoctorId:cleanStaffId(externalRaw)}}
 function identifySpecialist(raw){const value=String(raw??'').trim(),id=cleanStaffId(value),key=gpKey(value),doctor=gpDirectory().find(x=>cleanStaffId(x.staffId)===id)||gpDirectory().find(x=>gpKey(x.name)===key),d=SPECIALIST_DIRECTORY.find(x=>x.staffId===id)||SPECIALIST_DIRECTORY.find(x=>key.includes(gpKey(x.name))||key.includes(gpKey(x.specialty.split('/')[0])));return{requestedSpecialistId:d?.staffId||doctor?.staffId||(/^\d+$/.test(id)?id:''),requestedSpecialistName:d?.name||doctor?.name||value||'غير محدد',requestedSpecialty:d?.specialty||doctor?.specialty||doctor?.role||'غير محدد',specialistMatched:!!(d||doctor)}}
 
@@ -460,6 +461,7 @@ function processRows(rows, fname){
       doctorMatched:doctor.matched,
       sourceGp:doctor.sourceGp,
       externalDoctorId:doctor.externalDoctorId,
+      externalDoctorRaw:externalRaw,
       requestedSpecialistId:requested.requestedSpecialistId,
       requestedSpecialistName:requested.requestedSpecialistName,
       requestedSpecialty:requested.requestedSpecialty,
@@ -488,7 +490,7 @@ function goUpload(){document.getElementById('uscreen').style.display='flex';docu
 function renderKPI(){
   const t=DATA.length,wc=cn(DATA,'status','Wait Consultant'),
         rf=cn(DATA,'status','Refused'),wv=cn(DATA,'status','Wait Invoice'),
-        ap=cn(DATA,'approval','Approved'),rt=pt(ap,t);
+        ap=cn(DATA,'approval','Approved'),rt=pt(ap,t),unk=DATA.filter(r=>!r.requestedSpecialistId||!r.specialistMatched).length;
   const ds=DATA.map(d=>new Date(d.date)).filter(d=>!isNaN(d)).sort((a,b)=>a-b);
   const dr=ds.length?shD(ds[0])+' ← '+shD(ds[ds.length-1]):'—';
   document.getElementById('kv-t').textContent=t;   document.getElementById('ks-t').textContent=dr;
@@ -496,10 +498,12 @@ function renderKPI(){
   document.getElementById('kv-rf').textContent=rf; document.getElementById('ks-rf').textContent=pt(rf,t)+'% نسبة الرفض';
   document.getElementById('kv-wv').textContent=wv; document.getElementById('ks-wv').textContent=pt(wv,t)+'% من الإجمالي';
   document.getElementById('kv-rt').textContent=rt+'%';
+  document.getElementById('kv-unk').textContent=unk;document.getElementById('ks-unk').textContent=unk?'اضغط للمراجعة والتعريف':'جميع الأرقام معرّفة';
   document.getElementById('kb-wc').style.width=pt(wc,t)+'%';
   document.getElementById('kb-rf').style.width=pt(rf,t)+'%';
   document.getElementById('kb-wv').style.width=pt(wv,t)+'%';
   document.getElementById('kb-rt').style.width=rt+'%';
+  document.getElementById('kb-unk').style.width=pt(unk,t)+'%';
 }
 
 // ══ RENDER DONUT ══════════════════════════════════════
@@ -535,7 +539,7 @@ function renderGP(){
 
 // ══ SPECIALIST FOLLOW-UP BY STAFF ID & REQUESTING GP ══
 function specialistPairs(a=DATA){const m=new Map;for(const r of a){const sid=r.requestedSpecialistId||'غير محدد',sname=r.requestedSpecialistName||'غير محدد',gid=r.gpId||'غير محدد',key=`${sid}||${gid}||${r.gp}`;if(!m.has(key))m.set(key,{specialistId:sid,specialistName:sname,specialty:r.requestedSpecialty||'غير محدد',gpId:gid,gp:r.gp||'غير محدد',total:0,wait:0,refused:0,completed:0});const x=m.get(key);x.total++;if(r.status==='Wait Consultant')x.wait++;if(r.status==='Refused')x.refused++;if(r.status==='Completed')x.completed++}return[...m.values()].sort((a,b)=>String(a.specialistId).localeCompare(String(b.specialistId),undefined,{numeric:true})||b.total-a.total)}
-function renderSpecialists(){const sel=document.getElementById('spFilter'),req=document.getElementById('requesterFilter'),co=document.getElementById('companyFilter'),spOpts=[...new Map(DATA.map(r=>[r.requestedSpecialistId||'غير محدد',`${r.requestedSpecialistId||'غير محدد'} — ${r.requestedSpecialistName||'غير محدد'}`])).entries()],gpOpts=[...new Map(DATA.map(r=>[r.gp,`${r.gpId||'—'} — ${r.gp}`])).entries()],coOpts=[...new Set(DATA.map(r=>r.company).filter(Boolean))].sort();sel.innerHTML='<option value="">كل أرقام External Doctor</option>'+spOpts.map(([id,n])=>`<option value="${id}" ${id===ASP?'selected':''}>${n}</option>`).join('');req.innerHTML='<option value="">كل الأطباء الرافعين</option>'+gpOpts.map(([id,n])=>`<option value="${id}" ${id===AGP?'selected':''}>${n}</option>`).join('');co.innerHTML='<option value="">كل شركات التأمين</option>'+coOpts.map(x=>`<option value="${x}" ${x===ACO?'selected':''}>${x}</option>`).join('');const chips=[];if(ASP)chips.push(`External Doctor: ${ASP}`);if(AGP)chips.push(`الطبيب الرافع: ${AGP}`);if(ACO)chips.push(`التأمين: ${ACO}`);if(AST!=='all')chips.push(`الحالة: ${STAR[AST]||AST}`);document.getElementById('spActive').innerHTML=(chips.length?chips:['كل البيانات']).map(x=>`<span>${x}</span>`).join('');const a=specialistPairs(FILT),body=document.getElementById('specialistBody');body.innerHTML=a.map(x=>`<tr><td class="tid">${x.specialistId}</td><td class="spname">${x.specialistName}</td><td>${x.specialty}</td><td class="tid">${x.gpId}</td><td>${x.gp}</td><td><span class="pill pi">${x.total}</span></td><td><span class="pill pw">${x.wait}</span></td><td><span class="pill ps">${x.refused}</span></td><td><span class="pill pc">${x.completed}</span></td></tr>`).join('');document.getElementById('specialistEmpty').classList.toggle('show',!a.length)}
+function renderSpecialists(){const sel=document.getElementById('spFilter'),req=document.getElementById('requesterFilter'),co=document.getElementById('companyFilter'),spOpts=[...new Map(DATA.map(r=>[r.requestedSpecialistId||'غير محدد',`${r.requestedSpecialistId||'غير محدد'} — ${r.requestedSpecialistName||'غير محدد'}`])).entries()],gpOpts=[...new Map(DATA.map(r=>[r.gp,`${r.gpId||'—'} — ${r.gp}`])).entries()],coOpts=[...new Set(DATA.map(r=>r.company).filter(Boolean))].sort();sel.innerHTML='<option value="">كل أرقام External Doctor</option><option value="__UNMAPPED__" '+(ASP==='__UNMAPPED__'?'selected':'')+'>غير معرّف في دليل الأطباء</option>'+spOpts.map(([id,n])=>`<option value="${id}" ${id===ASP?'selected':''}>${n}</option>`).join('');req.innerHTML='<option value="">كل الأطباء الرافعين</option>'+gpOpts.map(([id,n])=>`<option value="${id}" ${id===AGP?'selected':''}>${n}</option>`).join('');co.innerHTML='<option value="">كل شركات التأمين</option>'+coOpts.map(x=>`<option value="${x}" ${x===ACO?'selected':''}>${x}</option>`).join('');const chips=[];if(ASP)chips.push(ASP==='__UNMAPPED__'?'External Doctor: غير معرّف':`External Doctor: ${ASP}`);if(AGP)chips.push(`الطبيب الرافع: ${AGP}`);if(ACO)chips.push(`التأمين: ${ACO}`);if(AST!=='all')chips.push(`الحالة: ${STAR[AST]||AST}`);document.getElementById('spActive').innerHTML=(chips.length?chips:['كل البيانات']).map(x=>`<span>${x}</span>`).join('');const a=specialistPairs(FILT),body=document.getElementById('specialistBody');body.innerHTML=a.map(x=>`<tr><td class="tid">${x.specialistId}</td><td class="spname">${x.specialistName}</td><td>${x.specialty}</td><td class="tid">${x.gpId}</td><td>${x.gp}</td><td><span class="pill pi">${x.total}</span></td><td><span class="pill pw">${x.wait}</span></td><td><span class="pill ps">${x.refused}</span></td><td><span class="pill pc">${x.completed}</span></td></tr>`).join('');document.getElementById('specialistEmpty').classList.toggle('show',!a.length)}
 function fltSpecialist(id){ASP=id;applyF()}
 function fltRequester(name){AGP=name;applyF()}
 function fltCompany(name){ACO=name;applyF()}
@@ -568,7 +572,8 @@ function applyF(){
   FILT=DATA.filter(r=>{
     if(AST!=='all'&&r.status!==AST)return false;
     if(AGP&&r.gp!==AGP)return false;
-    if(ASP&&(r.requestedSpecialistId||'غير محدد')!==ASP)return false;
+    if(ASP==='__UNMAPPED__'&&r.specialistMatched)return false;
+    if(ASP&&ASP!=='__UNMAPPED__'&&(r.requestedSpecialistId||'غير محدد')!==ASP)return false;
     if(ACO&&r.company!==ACO)return false;
     if(SQ&&!r.patient.toLowerCase().includes(SQ)&&!String(r.id).includes(SQ)&&!r.ptid.includes(SQ)&&!r.gp.toLowerCase().includes(SQ)&&!r.gpId.includes(SQ)&&!r.specialist.toLowerCase().includes(SQ)&&!r.requestedSpecialistId.includes(SQ)&&!r.requestedSpecialistName.toLowerCase().includes(SQ))return false;
     return true;
@@ -702,6 +707,7 @@ document.getElementById('fb').addEventListener('click',e=>{
 document.getElementById('srch').addEventListener('input',e=>{SQ=e.target.value.toLowerCase().trim();applyF()});
 
 function renderAll(){renderKPI();renderDonut();renderCompany();renderGP();renderDaily();applyF()}
+window.addEventListener('storage',e=>{if(e.key!==GP_DIRECTORY_KEY||!DATA.length)return;DATA.forEach(r=>{const d=identifyDoctor(r.sourceGp,r.externalDoctorRaw),s=identifySpecialist(r.externalDoctorRaw);r.gpId=d.gpId;r.gp=d.gp;r.specialist=d.specialist;r.doctorMatched=d.matched;r.requestedSpecialistId=s.requestedSpecialistId;r.requestedSpecialistName=s.requestedSpecialistName;r.requestedSpecialty=s.requestedSpecialty;r.specialistMatched=s.specialistMatched});applyF()});
 </script>
 </body>
 </html>
