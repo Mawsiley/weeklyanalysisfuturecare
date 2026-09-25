@@ -400,7 +400,7 @@ table.detail-table a.link-cell{color:var(--accent-dark);text-decoration:underlin
     </div>
   </header>
 
-  <div class="error-banner" id="errorBanner" style="display: block;">Could not process this file: Missing required columns in the uploaded file: DoctorName, DR_P, DR_D. Expected headers like "MRN/PTID", "Doctor Name", "DR P", "DR D".</div>
+  <div class="error-banner" id="errorBanner" style="display:none;"></div>
 
   <div class="dropzone-wrap" id="dropzoneWrap" style="display: block;">
     <div class="dropzone" id="dropzone">
@@ -1338,6 +1338,7 @@ function resetToUpload() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  hideError();
   const dropzone = document.getElementById('dropzone');
   const fileInput = document.getElementById('fileInput');
 
