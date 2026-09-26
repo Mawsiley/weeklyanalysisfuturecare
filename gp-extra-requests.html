@@ -165,6 +165,7 @@ tbody td{padding:9px 13px;font-size:10px;color:var(--dim);vertical-align:middle}
 @media(max-width:1100px){.kg{grid-template-columns:repeat(3,1fr)}.crow{grid-template-columns:1fr 1fr}}
 @media(max-width:700px){.main{padding:12px}.kg{grid-template-columns:1fr 1fr}.crow{grid-template-columns:1fr}}
 .spbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.spbar select{background:var(--sur);color:var(--txt);border:1px solid var(--bdr);border-radius:9px;padding:8px 11px;min-width:210px}.spnote{color:var(--mut);font-size:10px;margin-right:auto}.spname{font-weight:800;color:var(--acc)}.spActive{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}.spActive span{background:var(--bg);border:1px solid var(--bdr);border-radius:999px;padding:5px 9px;font-size:9px;color:var(--mut)}
+.requestCopyBox{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:stretch;margin:10px 0 14px;padding:11px;background:var(--bg);border:1px solid var(--bdr);border-radius:12px}.requestCopyBox textarea{width:100%;min-height:92px;max-height:190px;resize:vertical;border:1px solid var(--bdr);border-radius:9px;padding:10px;background:var(--sur);color:var(--txt);font-family:var(--fm);font-size:12px;line-height:1.65;direction:ltr;text-align:left}.requestCopyActions{display:flex;flex-direction:column;gap:7px;min-width:180px}.requestCopyActions small{color:var(--mut);font-size:9px;line-height:1.5}@media(max-width:700px){.requestCopyBox{grid-template-columns:1fr}.requestCopyActions{min-width:0}}
 </style>
 </head>
 <body>
@@ -221,8 +222,8 @@ tbody td{padding:9px 13px;font-size:10px;color:var(--dim);vertical-align:middle}
     </div>
     <div class="st">متابعة طلبات الاختصاصيين حسب الرقم الوظيفي</div>
     <div class="tc">
-      <div class="spbar"><select id="spFilter" onchange="fltSpecialist(this.value)"><option value="">كل أرقام External Doctor</option></select><select id="requesterFilter" onchange="fltRequester(this.value)"><option value="">كل الأطباء الرافعين</option></select><select id="companyFilter" onchange="fltCompany(this.value)"><option value="">كل شركات التأمين</option></select><button class="nbtn" onclick="clearSpecialistFilters()">↺ مسح الفلاتر</button><button class="nbtn" onclick="openDoctorDirectory()">🪪 تعريف رقم وظيفي</button><button class="nbtn" onclick="exportSpecialistExcel()">⬇ Excel متابعة الاختصاصيين</button></div>
-      <div class="spActive" id="spActive"><span>كل البيانات</span></div><div class="spnote" style="margin-bottom:10px">External Doctor = الرقم الوظيفي للاختصاصي المطلوب. عرّف الرقم غير المعروف من دليل الأطباء ثم أعد تحميل ملف الطلبات.</div>
+      <div class="spbar"><select id="spFilter" onchange="fltSpecialist(this.value)"><option value="">كل أرقام External Doctor</option></select><select id="requesterFilter" onchange="fltRequester(this.value)"><option value="">كل الأطباء الرافعين</option></select><select id="companyFilter" onchange="fltCompany(this.value)"><option value="">كل شركات التأمين</option></select><button class="nbtn" onclick="clearSpecialistFilters()">↺ مسح الفلاتر</button><button class="nbtn" onclick="openDoctorDirectory()">🪪 تعريف رقم وظيفي</button><button class="nbtn" id="copyRequestIdsBtn" onclick="copyRequestIds()">⎘ نسخ Request ID</button><button class="nbtn" onclick="exportSpecialistExcel()">⬇ Excel متابعة الاختصاصيين</button></div>
+      <div class="spActive" id="spActive"><span>كل البيانات</span></div><div class="spnote" style="margin-bottom:10px">External Doctor = الرقم الوظيفي للاختصاصي المطلوب. عرّف الرقم غير المعروف من دليل الأطباء ثم أعد تحميل ملف الطلبات.</div><div class="requestCopyBox"><textarea id="requestIdsPreview" readonly aria-label="Request IDs حسب الفلتر"></textarea><div class="requestCopyActions"><button class="nbtn" id="copyRequestIdsPanelBtn" onclick="copyRequestIds()">⎘ نسخ الأرقام سطرًا بسطر</button><button class="nbtn" onclick="downloadRequestIdsTxt()">⬇ تنزيل TXT</button><small>تتغير القائمة تلقائيًا حسب External Doctor والطبيب الرافع والحالة والتأمين والبحث.</small></div></div>
       <div style="overflow-x:auto"><table><thead><tr><th>رقم الاختصاصي</th><th>الاختصاصي المطلوب</th><th>التخصص</th><th>رقم الطبيب الرافع</th><th>الطبيب الذي رفع الطلب</th><th>إجمالي الطلبات</th><th>بانتظار الاستشاري</th><th>مرفوض</th><th>مكتمل</th></tr></thead><tbody id="specialistBody"></tbody></table></div>
       <div class="empty" id="specialistEmpty"><div style="font-size:28px;margin-bottom:6px">🩺</div>لا توجد بيانات اختصاصي مطلوبة في الملف.</div>
     </div>
@@ -585,8 +586,16 @@ function applyF(){
     return av.toString().localeCompare(bv.toString())*SD;
   });
   PG=1;
-  renderTable();renderDonut();renderGP();renderSpecialists();genReport();
+  renderTable();renderDonut();renderGP();renderSpecialists();renderRequestIds();genReport();
 }
+
+// ══ COPY REQUEST IDS ═════════════════════════════════
+function requestIdsText(){return[...new Set(FILT.map(r=>String(r.id??'').replace(/^#/, '').trim()).filter(Boolean))].join('\n')}
+function renderRequestIds(){const text=requestIdsText(),n=text?text.split('\n').length:0,preview=document.getElementById('requestIdsPreview'),top=document.getElementById('copyRequestIdsBtn'),panel=document.getElementById('copyRequestIdsPanelBtn');if(preview)preview.value=text;if(top)top.textContent=`⎘ نسخ Request ID (${n})`;if(panel)panel.textContent=`⎘ نسخ ${n} رقم سطرًا بسطر`}
+function clipboardCopy(text,done){if(!text)return alert('لا توجد أرقام طلبات في الفلتر الحالي.');const ok=()=>{if(done)done();};if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(text).then(ok).catch(()=>fallbackCopy(text,ok));else fallbackCopy(text,ok)}
+function fallbackCopy(text,done){const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();done()}
+function copyRequestIds(){const text=requestIdsText(),n=text?text.split('\n').length:0;clipboardCopy(text,()=>{const buttons=[document.getElementById('copyRequestIdsBtn'),document.getElementById('copyRequestIdsPanelBtn')].filter(Boolean);buttons.forEach(b=>{b.dataset.old=b.textContent;b.textContent=`✓ تم نسخ ${n} رقم`});setTimeout(()=>renderRequestIds(),2200)})}
+function downloadRequestIdsTxt(){const text=requestIdsText();if(!text)return alert('لا توجد أرقام طلبات في الفلتر الحالي.');const label=(ASP||AGP||ACO||(AST!=='all'?AST:'All')).replace(/[^\w\u0600-\u06FF-]+/g,'_'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));a.download=`Request_IDs_${label}_${new Date().toISOString().slice(0,10)}.txt`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 
 // ══ TABLE ═════════════════════════════════════════════
 function renderTable(){
