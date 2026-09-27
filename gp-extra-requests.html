@@ -471,11 +471,11 @@ function processRows(rows, fname){
     };
   }).filter(r=>r.patient||r.id>0);
 
-  // Operational precedence: for the same patient file and requested External Doctor,
-  // Wait Consultant supersedes an older Refused request.
-  const referralKey=r=>`${String(r.ptid||'').replace(/\.0$/,'').trim()}||${String(r.requestedSpecialistId||r.externalDoctorRaw||'').trim()}`;
-  const waitConsultantKeys=new Set(DATA.filter(r=>r.status==='Wait Consultant'&&r.ptid).map(referralKey));
-  SUPPRESSED_REFUSED=DATA.filter(r=>r.status==='Refused'&&r.ptid&&waitConsultantKeys.has(referralKey(r)));
+  // Patient-level operational precedence: if a PTID is waiting for a consultant,
+  // every older Refused record for that same patient is removed from operations.
+  const patientKey=r=>String(r.ptid||'').replace(/\.0$/,'').trim();
+  const waitConsultantPtids=new Set(DATA.filter(r=>r.status==='Wait Consultant'&&patientKey(r)).map(patientKey));
+  SUPPRESSED_REFUSED=DATA.filter(r=>r.status==='Refused'&&waitConsultantPtids.has(patientKey(r)));
   DATA=DATA.filter(r=>!SUPPRESSED_REFUSED.includes(r));
 
   dbg('Parsed DATA: '+DATA.length+' records');
