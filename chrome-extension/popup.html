@@ -1,0 +1,14 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="popup.css"><title>Not Done Sync</title></head><body>
+<header><b>FutureCare</b><span>Not Done Sync</span></header>
+<main>
+  <section><h2>1. إنشاء روابط الأطباء</h2><p>افتح تبويب <b>Not Done — DRD=0</b> في الداشبورد بعد تحميل ملف الأداء، ثم التقط الحالات.</p>
+    <button id="capture">التقاط الحالات من الصفحة</button><div id="captureInfo" class="info">لا توجد حالات محفوظة.</div>
+    <button id="create" class="primary">إنشاء Google Sheet لكل طبيب</button><div id="links"></div>
+  </section>
+  <section><h2>2. إدخال الأسباب في iCare</h2><p>افتح صفحة أسباب عدم التنفيذ، اختر الشهر والمدينة وGP ثم اضغط Load وانتظر ظهور الجدول.</p>
+    <button id="review">مراجعة الأسباب من Google Sheets</button>
+    <button id="apply" class="danger">تطبيق الأسباب داخل iCare</button>
+    <div id="syncInfo" class="info">لن تُعدل أي حالة غير مطابقة بـ PTID.</div>
+  </section>
+  <footer><button id="settings" class="link">الإعدادات وقائمة الأسباب</button></footer>
+</main><script src="popup.js"></script></body></html>
