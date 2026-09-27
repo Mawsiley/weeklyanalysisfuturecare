@@ -251,7 +251,7 @@ tbody td{padding:9px 13px;font-size:10px;color:var(--dim);vertical-align:middle}
 
 <script>
 // ══ STATE & MAPS ══════════════════════════════════════
-let DATA=[], FILT=[], AST='all', AGP='', ASP='', ACO='', SQ='', SK='date', SD=-1, PG=1;
+let DATA=[], FILT=[], SUPPRESSED_REFUSED=[], AST='all', AGP='', ASP='', ACO='', SQ='', SK='date', SD=-1, PG=1;
 const PZ=20;
 const GP_DIRECTORY_KEY='futurecare-doctor-directory-v1';
 const GP_DIRECTORY_DEFAULT=[
@@ -471,7 +471,15 @@ function processRows(rows, fname){
     };
   }).filter(r=>r.patient||r.id>0);
 
+  // Operational precedence: for the same patient file and requested External Doctor,
+  // Wait Consultant supersedes an older Refused request.
+  const referralKey=r=>`${String(r.ptid||'').replace(/\.0$/,'').trim()}||${String(r.requestedSpecialistId||r.externalDoctorRaw||'').trim()}`;
+  const waitConsultantKeys=new Set(DATA.filter(r=>r.status==='Wait Consultant'&&r.ptid).map(referralKey));
+  SUPPRESSED_REFUSED=DATA.filter(r=>r.status==='Refused'&&r.ptid&&waitConsultantKeys.has(referralKey(r)));
+  DATA=DATA.filter(r=>!SUPPRESSED_REFUSED.includes(r));
+
   dbg('Parsed DATA: '+DATA.length+' records');
+  dbg('Suppressed Refused because Wait Consultant exists: '+SUPPRESSED_REFUSED.length);
   dbg('Sample: '+JSON.stringify(DATA[0]));
 
   if(!DATA.length)return setErr('لا توجد سجلات صالحة في الملف');
@@ -485,7 +493,7 @@ function processRows(rows, fname){
   renderAll();
 }
 
-function goUpload(){document.getElementById('uscreen').style.display='flex';document.getElementById('app').style.display='none';document.getElementById('uprg').style.display='none';document.getElementById('uerr').style.display='none';document.getElementById('udbg').style.display='none';DATA=[];FILT=[]}
+function goUpload(){document.getElementById('uscreen').style.display='flex';document.getElementById('app').style.display='none';document.getElementById('uprg').style.display='none';document.getElementById('uerr').style.display='none';document.getElementById('udbg').style.display='none';DATA=[];FILT=[];SUPPRESSED_REFUSED=[]}
 
 // ══ RENDER KPI ════════════════════════════════════════
 function renderKPI(){
@@ -540,7 +548,7 @@ function renderGP(){
 
 // ══ SPECIALIST FOLLOW-UP BY STAFF ID & REQUESTING GP ══
 function specialistPairs(a=DATA){const m=new Map;for(const r of a){const sid=r.requestedSpecialistId||'غير محدد',sname=r.requestedSpecialistName||'غير محدد',gid=r.gpId||'غير محدد',key=`${sid}||${gid}||${r.gp}`;if(!m.has(key))m.set(key,{specialistId:sid,specialistName:sname,specialty:r.requestedSpecialty||'غير محدد',gpId:gid,gp:r.gp||'غير محدد',total:0,wait:0,refused:0,completed:0});const x=m.get(key);x.total++;if(r.status==='Wait Consultant')x.wait++;if(r.status==='Refused')x.refused++;if(r.status==='Completed')x.completed++}return[...m.values()].sort((a,b)=>String(a.specialistId).localeCompare(String(b.specialistId),undefined,{numeric:true})||b.total-a.total)}
-function renderSpecialists(){const sel=document.getElementById('spFilter'),req=document.getElementById('requesterFilter'),co=document.getElementById('companyFilter'),spOpts=[...new Map(DATA.map(r=>[r.requestedSpecialistId||'غير محدد',`${r.requestedSpecialistId||'غير محدد'} — ${r.requestedSpecialistName||'غير محدد'}`])).entries()],gpOpts=[...new Map(DATA.map(r=>[r.gp,`${r.gpId||'—'} — ${r.gp}`])).entries()],coOpts=[...new Set(DATA.map(r=>r.company).filter(Boolean))].sort();sel.innerHTML='<option value="">كل أرقام External Doctor</option><option value="__UNMAPPED__" '+(ASP==='__UNMAPPED__'?'selected':'')+'>غير معرّف في دليل الأطباء</option>'+spOpts.map(([id,n])=>`<option value="${id}" ${id===ASP?'selected':''}>${n}</option>`).join('');req.innerHTML='<option value="">كل الأطباء الرافعين</option>'+gpOpts.map(([id,n])=>`<option value="${id}" ${id===AGP?'selected':''}>${n}</option>`).join('');co.innerHTML='<option value="">كل شركات التأمين</option>'+coOpts.map(x=>`<option value="${x}" ${x===ACO?'selected':''}>${x}</option>`).join('');const chips=[];if(ASP)chips.push(ASP==='__UNMAPPED__'?'External Doctor: غير معرّف':`External Doctor: ${ASP}`);if(AGP)chips.push(`الطبيب الرافع: ${AGP}`);if(ACO)chips.push(`التأمين: ${ACO}`);if(AST!=='all')chips.push(`الحالة: ${STAR[AST]||AST}`);document.getElementById('spActive').innerHTML=(chips.length?chips:['كل البيانات']).map(x=>`<span>${x}</span>`).join('');const a=specialistPairs(FILT),body=document.getElementById('specialistBody');body.innerHTML=a.map(x=>`<tr><td class="tid">${x.specialistId}</td><td class="spname">${x.specialistName}</td><td>${x.specialty}</td><td class="tid">${x.gpId}</td><td>${x.gp}</td><td><span class="pill pi">${x.total}</span></td><td><span class="pill pw">${x.wait}</span></td><td><span class="pill ps">${x.refused}</span></td><td><span class="pill pc">${x.completed}</span></td></tr>`).join('');document.getElementById('specialistEmpty').classList.toggle('show',!a.length)}
+function renderSpecialists(){const sel=document.getElementById('spFilter'),req=document.getElementById('requesterFilter'),co=document.getElementById('companyFilter'),spOpts=[...new Map(DATA.map(r=>[r.requestedSpecialistId||'غير محدد',`${r.requestedSpecialistId||'غير محدد'} — ${r.requestedSpecialistName||'غير محدد'}`])).entries()],gpOpts=[...new Map(DATA.map(r=>[r.gp,`${r.gpId||'—'} — ${r.gp}`])).entries()],coOpts=[...new Set(DATA.map(r=>r.company).filter(Boolean))].sort();sel.innerHTML='<option value="">كل أرقام External Doctor</option><option value="__UNMAPPED__" '+(ASP==='__UNMAPPED__'?'selected':'')+'>غير معرّف في دليل الأطباء</option>'+spOpts.map(([id,n])=>`<option value="${id}" ${id===ASP?'selected':''}>${n}</option>`).join('');req.innerHTML='<option value="">كل الأطباء الرافعين</option>'+gpOpts.map(([id,n])=>`<option value="${id}" ${id===AGP?'selected':''}>${n}</option>`).join('');co.innerHTML='<option value="">كل شركات التأمين</option>'+coOpts.map(x=>`<option value="${x}" ${x===ACO?'selected':''}>${x}</option>`).join('');const chips=[];if(ASP)chips.push(ASP==='__UNMAPPED__'?'External Doctor: غير معرّف':`External Doctor: ${ASP}`);if(AGP)chips.push(`الطبيب الرافع: ${AGP}`);if(ACO)chips.push(`التأمين: ${ACO}`);if(AST!=='all')chips.push(`الحالة: ${STAR[AST]||AST}`);if(SUPPRESSED_REFUSED.length)chips.push(`استبعاد ${SUPPRESSED_REFUSED.length} رفض قديم لوجود Wait Consultant`);document.getElementById('spActive').innerHTML=(chips.length?chips:['كل البيانات']).map(x=>`<span>${x}</span>`).join('');const a=specialistPairs(FILT),body=document.getElementById('specialistBody');body.innerHTML=a.map(x=>`<tr><td class="tid">${x.specialistId}</td><td class="spname">${x.specialistName}</td><td>${x.specialty}</td><td class="tid">${x.gpId}</td><td>${x.gp}</td><td><span class="pill pi">${x.total}</span></td><td><span class="pill pw">${x.wait}</span></td><td><span class="pill ps">${x.refused}</span></td><td><span class="pill pc">${x.completed}</span></td></tr>`).join('');document.getElementById('specialistEmpty').classList.toggle('show',!a.length)}
 function fltSpecialist(id){ASP=id;applyF()}
 function fltRequester(name){AGP=name;applyF()}
 function fltCompany(name){ACO=name;applyF()}
