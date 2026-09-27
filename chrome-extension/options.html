@@ -1,0 +1,6 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="popup.css"><title>إعدادات Not Done</title><style>body{width:min(760px,96vw);margin:24px auto}label{display:block;font-weight:700;margin:12px 0 5px}input,textarea{width:100%;padding:10px;border:1px solid #ccd8d2;border-radius:9px}textarea{min-height:220px}code{direction:ltr;display:block;background:#eef2f5;padding:8px;border-radius:7px}</style></head><body><section><h2>إعدادات Google وiCare</h2>
+<label>Google OAuth Client ID</label><input id="clientId" placeholder="xxxxxxxx.apps.googleusercontent.com">
+<p>أضف Redirect URI التالي في Google Cloud OAuth:</p><code id="redirect"></code>
+<label>أسباب Not Done — سبب واحد في كل سطر</label><textarea id="reasons"></textarea>
+<label><input id="anyone" type="checkbox" style="width:auto"> إنشاء رابط تحرير لأي شخص يملك الرابط</label>
+<button id="save" class="primary">حفظ الإعدادات</button><div id="msg" class="info"></div></section><script src="options.js"></script></body></html>
