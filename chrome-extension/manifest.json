@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "FutureCare Not Done Sync",
+  "version": "1.0.0",
+  "description": "إنشاء ملفات متابعة Not Done لكل طبيب ومزامنة الأسباب إلى iCare.",
+  "permissions": ["storage", "identity", "activeTab", "scripting", "downloads"],
+  "host_permissions": [
+    "https://icare.com.sa/*",
+    "https://www.googleapis.com/*",
+    "https://oauth2.googleapis.com/*",
+    "https://accounts.google.com/*",
+    "https://mawsiley.github.io/*",
+    "https://*.netlify.app/*"
+  ],
+  "background": {"service_worker": "background.js"},
+  "action": {"default_title": "FutureCare Not Done", "default_popup": "popup.html"},
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": ["https://icare.com.sa/*", "https://mawsiley.github.io/*", "https://*.netlify.app/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
