@@ -396,6 +396,7 @@ table.detail-table a.link-cell{color:var(--accent-dark);text-decoration:underlin
     </div>
     <div class="header-actions">
       <button class="btn btn-secondary" id="loadNewBtn" style="display:none;">↺ Load New File</button>
+      <button class="btn btn-secondary" id="copyPtidBtn" disabled title="PTID is the patient file number">⎘ Copy PTID</button>
       <button class="btn btn-primary" id="exportBtn" disabled="">⬇ Export Per-Doctor Excel</button>
     </div>
   </header>
@@ -1315,6 +1316,7 @@ async function handleFile(file) {
 
     document.getElementById('dashboardContent').style.display = 'block';
     document.getElementById('exportBtn').disabled = STATE.notDoneRows.length === 0;
+    document.getElementById('copyPtidBtn').disabled = STATE.notDoneRows.length === 0;
     document.getElementById('loadNewBtn').style.display = 'inline-flex';
     setLoading(false);
   } catch (err) {
@@ -1332,6 +1334,7 @@ function resetToUpload() {
   document.getElementById('dashboardContent').style.display = 'none';
   document.getElementById('dropzoneWrap').style.display = 'block';
   document.getElementById('exportBtn').disabled = true;
+  document.getElementById('copyPtidBtn').disabled = true;
   document.getElementById('loadNewBtn').style.display = 'none';
   hideError();
   document.getElementById('fileInput').value = '';
@@ -1399,6 +1402,17 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Export
+  document.getElementById('copyPtidBtn').addEventListener('click', async () => {
+    const rows = STATE.filtered.length ? STATE.filtered : STATE.notDoneRows;
+    const ids = [...new Set(rows.map(r => String(r.PTID || '').replace(/\.0$/, '').trim()).filter(Boolean))];
+    if (!ids.length) return showError('No patient PTID file numbers are available in the current filter.');
+    const btn = document.getElementById('copyPtidBtn'), original = btn.textContent, text = ids.join('\n');
+    try { await navigator.clipboard.writeText(text); }
+    catch { const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove(); }
+    btn.textContent = `✓ Copied ${ids.length} PTID`;
+    setTimeout(() => btn.textContent = original, 1800);
+  });
+
   document.getElementById('exportBtn').addEventListener('click', async () => {
     const btn = document.getElementById('exportBtn');
     const original = btn.textContent;
