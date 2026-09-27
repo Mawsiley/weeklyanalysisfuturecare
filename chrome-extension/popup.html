@@ -2,8 +2,10 @@
 <header><b>FutureCare</b><span>Not Done Sync</span></header>
 <main>
   <section><h2>1. إنشاء روابط الأطباء</h2><p>افتح تبويب <b>Not Done — DRD=0</b> في الداشبورد بعد تحميل ملف الأداء، ثم التقط الحالات.</p>
+    <label id="excelDrop" class="drop"><input id="excelFile" type="file" accept=".xls,.xlsx,.xlsm,.csv"><b>اسحب ملف Excel هنا</b><span>أو اضغط لاختيار ملف الأداء مباشرة</span></label>
+    <div id="fileInfo" class="info">يدعم XLS وXLSX وCSV.</div>
     <button id="capture">التقاط الحالات من الصفحة</button><div id="captureInfo" class="info">لا توجد حالات محفوظة.</div>
-    <button id="create" class="primary">إنشاء Google Sheet لكل طبيب</button><div id="links"></div>
+    <button id="create" class="primary">إنشاء الملف الواحد وصفحات الأطباء</button><div id="links"></div>
   </section>
   <section><h2>2. إدخال الأسباب في iCare</h2><p>افتح صفحة أسباب عدم التنفيذ، اختر الشهر والمدينة وGP ثم اضغط Load وانتظر ظهور الجدول.</p>
     <button id="review">مراجعة الأسباب من Google Sheets</button>
@@ -11,4 +13,4 @@
     <div id="syncInfo" class="info">لن تُعدل أي حالة غير مطابقة بـ PTID.</div>
   </section>
   <footer><button id="settings" class="link">الإعدادات وقائمة الأسباب</button></footer>
-</main><script src="popup.js"></script></body></html>
+</main><script src="xlsx.full.min.js"></script><script src="popup.js"></script></body></html>
