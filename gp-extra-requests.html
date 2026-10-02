@@ -326,6 +326,7 @@ async function startLoad(file){
       await new Promise((res,rej)=>{
         const s=document.createElement('script');
         s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.integrity='sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw';s.crossOrigin='anonymous';
         s.onload=()=>{dbg('SheetJS loaded');res()};
         s.onerror=()=>rej(new Error('فشل تحميل SheetJS'));
         document.head.appendChild(s);

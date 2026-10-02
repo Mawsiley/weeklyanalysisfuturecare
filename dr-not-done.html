@@ -9,8 +9,8 @@
 <meta name="netlify-deploy" content="https://netlify.new/?utm_campaign=ai-legible&amp;utm_source=meta&amp;utm_medium=referral&amp;utm_id=ffebda87-5ea9-4f1d-9ee2-83d8da1251bf">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DR NOT DONE Analytics Dashboard</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" integrity="sha384-vsrfeLOOY6KuIYKDlmVH5UiBmgIdB1oEf7p01YgWHuqmOHfZr374+odEv96n9tNC" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js" integrity="sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz" crossorigin="anonymous"></script>
 <style>
 :root{
   --bg-page:#f4f6f9;
@@ -583,7 +583,7 @@ const HEADER_MAP = {
 
 let STATE = {
   rawRows: [],           // all parsed rows (objects keyed by canonical field where known)
-  notDoneRows: [],       // rows where DR_P - DR_D > 0
+  notDoneRows: [],       // rows where DR_P > 0 and DR_D = 0 (Deactive excluded)
   filtered: [],          // notDoneRows after filters applied
   doctorStats: [],       // aggregated per-doctor stats
   sortKey: 'count',
@@ -747,6 +747,10 @@ function normalizeRows(headers, dataRows) {
     const doctorName = String(get('DoctorName')).trim();
     if (!doctorName) continue; // skip rows with no doctor
 
+    // Same rules as the main dashboard: Deactive patients are excluded entirely.
+    const statusKey = String(get('Status')).toLowerCase().replace(/[^a-z]/g, '');
+    if (['deactive', 'deactivated', 'inactive'].includes(statusKey)) continue;
+
     const drP = toNumberSafe(get('DR_P'));
     const drD = toNumberSafe(get('DR_D'));
 
@@ -756,7 +760,8 @@ function normalizeRows(headers, dataRows) {
       DoctorName: doctorName,
       DR_P: drP,
       DR_D: drD,
-      DR_NOT_DONE: drP - drD,
+      // Partial visits (DR_D > 0) count as fulfilled, so only never-visited cases are NOT DONE.
+      DR_NOT_DONE: drP > 0 && drD === 0 ? drP : 0,
       GPNote: get('GPNote'),
       Status: get('Status'),
       LastVisit: get('LastVisit'),
@@ -933,7 +938,7 @@ function renderKPIs() {
     { label: 'Total NOT DONE Cases', value: totalNotDone.toLocaleString(), cls: 'red', sub: `out of ${STATE.notDoneRows.length.toLocaleString()} unfiltered` },
     { label: 'Doctors Affected', value: doctorCount, cls: 'yellow', sub: 'with at least one NOT DONE case' },
     { label: 'Missing GP Note', value: missingGP.toLocaleString(), cls: 'red', sub: `${totalNotDone ? ((missingGP/totalNotDone)*100).toFixed(0) : 0}% of filtered cases` },
-    { label: 'DR Completion Rate', value: completion + '%', cls: 'green', sub: `${totalD.toFixed(0)} done / ${totalP.toFixed(0)} planned` }
+    { label: 'Unexecuted Visits', value: totalP.toFixed(0), cls: 'green', sub: 'planned DR visits with DR D = 0 (partials excluded)' }
   ];
 
   const row = document.getElementById('kpiRow');
