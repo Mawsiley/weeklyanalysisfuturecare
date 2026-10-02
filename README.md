@@ -15,7 +15,8 @@ Single-file Arabic/English dashboard for doctor performance and home-care operat
 - Completion and utilization (6 visits/day, excluding Fridays) over a manual analysis period (from–to; default: month start → report date)
 - Not visited (DRP > 0, DRD = 0)
 - Executive report scope: doctors with fewer than 20 patients are excluded (name, patients and totals) and listed in a note; overall utilization = DR Done ÷ (working days × 6 × included doctors)
-- GP Note documentation
+- Not Done analysed by GP Note: reason categories (patient-related vs operational), per-doctor reasons, unclassified notes and generated recommendations — in the Not Done tab, the executive report/Word, a dedicated Excel sheet and the PDF
+- Default analysis period = first → last Last Visit date in the uploaded file
 - DRP=0 with other services
 - HARP, mobility, hospital admissions, and last visit
 - Editable duty schedule and CME planning
