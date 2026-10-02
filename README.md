@@ -24,7 +24,7 @@ Single-file Arabic/English dashboard for doctor performance and home-care operat
 Open it from **🗓 المناوبات** in the header (no performance file needed) or the duty-schedule tab.
 
 - Day shift 08:00–20:00, night shift 20:00–08:00.
-- 08:00–12:00 on-call + New: Dr Lana by default; any day (or the whole month) can switch to a rotating GP who continues daily visits.
+- 08:00–12:00 on-call + New: Dr Lana by default. The GP rotation for this slot (Aya, Alaa, Rayan, Abdullah, Yousef, Iman) is inactive and can be activated from a chosen date via the rotation bar; single days can also be switched either way.
 - New + Cash + cases referred by supervision: Dr Lana (replacing Dr Marwa).
 - 12:00–20:00 Saturday–Thursday: the case doctor first, then the specialist on duty, alternating daily between Dr Ruqaya and Dr Islam.
 - Fridays 08:00–20:00 (standby, activated on request): rotating GPs excluding Dr Lana, starting with Dr Aya in October 2026.
