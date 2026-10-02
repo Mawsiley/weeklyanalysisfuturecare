@@ -14,6 +14,7 @@ Single-file Arabic/English dashboard for doctor performance and home-care operat
 - DR Plan and DR Done — partial cases (DRP > DRD > 0) are treated as fulfilled: their remaining visits are zeroed out of DR Plan everywhere (listed for audit in the Partial tab)
 - Completion and utilization (6 visits/day, excluding Fridays) over a manual analysis period (from–to; default: month start → report date)
 - Not visited (DRP > 0, DRD = 0)
+- Executive report scope: doctors with fewer than 20 patients are excluded (name, patients and totals) and listed in a note; overall utilization = DR Done ÷ (working days × 6 × included doctors)
 - GP Note documentation
 - DRP=0 with other services
 - HARP, mobility, hospital admissions, and last visit
