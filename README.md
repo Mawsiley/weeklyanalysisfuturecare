@@ -30,8 +30,9 @@ Open it from **🗓 المناوبات** in the header (no performance file need
 - Fridays 08:00–20:00 (standby, activated on request): rotating GPs excluding Dr Lana, starting with Dr Aya in October 2026.
 - Night: Dr Hossam; Friday Dr Samar; Sunday Dr Turki.
 - Leave: shifts of a doctor on leave turn red until a replacement is chosen.
+- Top menu: **Doctors & names** (rename everywhere, rotation membership, add/remove), **Leave entry**, **Change / exception** (single shift or a date range, optionally replacing one doctor, with a reason), and an **Exceptions log** (undo changes, assign replacements for leave conflicts).
 - Every cell is editable; rotation rules and instructions are editable under the dashboard.
-- Outputs: formatted RTL Excel (schedule + instructions, instructions, per-doctor load, leave log) and a print/PDF page.
+- Outputs: formatted RTL Excel (schedule with notes + instructions + exceptions, instructions, exceptions, per-doctor load, leave log) and a print/PDF page with the same exceptions.
 - Data is stored in the browser (`futurecare-duty-v4`); use the settings backup button to move it between devices.
 
 Prepared by: Dr ALMAWSILEY ALSAYED
