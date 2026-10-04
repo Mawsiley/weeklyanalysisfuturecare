@@ -9,6 +9,8 @@ Single-file Arabic/English dashboard for doctor performance and home-care operat
 3. Select the report date and apply filters.
 4. Export filtered Excel, Word, PDF, HTML, TXT, duty schedule, and CME analysis.
 
+All generated reports and exports (executive report text/HTML/TXT, Word, PDF, Excel, duty schedule Excel/print, GP Extra report) are in English; the dashboard interface is Arabic.
+
 ## Metrics
 
 - DR Plan and DR Done — partial cases (DRP > DRD > 0) are treated as fulfilled: their remaining visits are zeroed out of DR Plan everywhere (listed for audit in the Partial tab)
