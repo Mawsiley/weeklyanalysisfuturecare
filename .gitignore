@@ -1,0 +1,7 @@
+# Local Netlify folder
+.netlify
+node_modules
+.env
+.env.*
+backups/
+backup-*.json

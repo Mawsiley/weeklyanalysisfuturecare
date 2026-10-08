@@ -40,3 +40,7 @@ Open it from **🗓 المناوبات** in the header (no performance file need
 - Data is stored in the browser (`futurecare-duty-v4`); use the settings backup button to move it between devices.
 
 Prepared by: Dr ALMAWSILEY ALSAYED
+
+## Cloud sync (Firestore)
+
+The header button **☁️ ربط المزامنة** signs in with the team password and syncs app settings (duty schedule, leave, exceptions, doctor directory, staff list, CME plan) across devices through a Netlify Function and Firestore. Patient data is never uploaded. See `docs/db-schema.md`.
