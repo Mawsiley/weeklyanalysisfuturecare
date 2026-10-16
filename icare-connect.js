@@ -26,6 +26,7 @@
   window.addEventListener('message',e=>{if(e.source!==window||e.origin!==location.origin)return;const m=e.data;if(!m||m.source!=='fc-weekly-ext'||!waiting.has(m.id))return;waiting.get(m.id)(m);waiting.delete(m.id)});
   const ask=(type,extra={},ms=300000)=>new Promise(res=>{const id='q'+(++seq)+Date.now();waiting.set(id,res);window.postMessage({source:'fc-weekly',id,type,...extra},location.origin);setTimeout(()=>{if(waiting.has(id)){waiting.delete(id);res({ok:false,code:'NO_EXTENSION'})}},type==='STATUS'?1500:ms)});
 
+  window.fcIcare={ask}; // used by the dashboard's Tasks tab (status + hand-off to the extension window)
   const ERR={NO_EXTENSION:'إضافة FutureCare Weekly — iCare غير مثبتة أو غير مفعّلة على هذا المتصفح.',NO_TOKEN:'لا توجد جلسة iCare — افتح iCare وسجّل الدخول ثم أعد المحاولة.',TOKEN_EXPIRED:'انتهت جلسة iCare — افتح iCare وسجّل الدخول من جديد.',CITY_NOT_FOUND:'لم يتم العثور على المدن المطلوبة في قائمة مدن iCare.',NETWORK:'تعذّر الاتصال بـ iCare.',BAD_MONTH:'الشهر غير صحيح.',FORBIDDEN_ORIGIN:'هذه الصفحة غير مسموح لها في الإضافة.',EXTENSION_ERROR:'أُعيد تحميل الإضافة — حدّث الصفحة.'};
   const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const thisMonth=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`};
