@@ -16,7 +16,7 @@ All generated reports and exports (executive report text/HTML/TXT, Word, PDF, Ex
 - DR Plan and DR Done — partial cases (DRP > DRD > 0) are treated as fulfilled: their remaining visits are zeroed out of DR Plan everywhere (listed for audit in the Partial tab)
 - Completion and utilization (6 visits/day, excluding Fridays) over a manual analysis period (from–to; default: month start → report date)
 - Not visited (DRP > 0, DRD = 0)
-- Executive report scope: doctors with fewer than 20 patients are excluded (name, patients and totals) and listed in a note; overall utilization = DR Done ÷ (working days × 6 × included doctors)
+- Executive report scope: doctors with fewer than 20 patients are excluded (name, patients and totals) and listed in a note — except Dr Islam Mahmoud Mohamed, Dr Asjad Abdelazem Mohamed Mustafa and Dr Rawan Yousif Mahadi Hassan, who are always included (`REPORT_ALWAYS_INCLUDE`); overall utilization = DR Done ÷ (working days × 6 × included doctors)
 - Not Done analysed by GP Note: reason categories (patient-related vs operational), per-doctor reasons, unclassified notes and generated recommendations — in the Not Done tab, the executive report/Word, a dedicated Excel sheet and the PDF
 - Default analysis period = first → last Last Visit date in the uploaded file
 - DRP=0 with other services
