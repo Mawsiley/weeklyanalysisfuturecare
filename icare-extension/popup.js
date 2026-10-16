@@ -1,3 +1,4 @@
+document.getElementById('ver').textContent = 'v' + chrome.runtime.getManifest().version;
 chrome.runtime.sendMessage({ type: 'FCW_STATUS' }).then(s => {
   const el = document.getElementById('st');
   if(s && s.hasToken){

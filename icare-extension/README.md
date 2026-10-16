@@ -1,4 +1,4 @@
-# FutureCare Weekly — iCare Reports (1.0.1)
+# FutureCare Weekly — iCare Reports (1.0.2)
 
 إضافة Chrome مستقلة لتطبيق التحليل الأسبوعي (weeklyanalysisfuturecare). تجلب تقرير الأداء من iCare باستخدام جلستك المسجّلة — لا تحفظ كلمة مرور؛ التوكن في ذاكرة المتصفح فقط ويُمسح عند إغلاقه، ولا يصل إلى صفحة التحليل.
 
@@ -17,3 +17,9 @@
 الطلبات: `filter-options` ← لكل مدينة `report-plan?month&city` ← `report?month&city&ids` (دفعات 200). يُبنى الملف بنفس أعمدة تصدير iCare (`performance-report_<الشهر>_all`).
 الصفحات المسموح لها فقط: weeklyanalysisfuturecare.netlify.app و localhost:5177 (للاختبار).
 المصدر محفوظ أيضاً في مستودع التطبيق: `icare-extension/`.
+
+## الإصدارات
+كل تعديل يرفع رقم الإصدار (manifest.json) — يظهر في نافذة الإضافة وفي رسالة الاتصال داخل التطبيق.
+- 1.0.2 — أيقونة الإضافة، رقم الإصدار في النافذة.
+- 1.0.1 — مطابقة رموز مدن iCare (JED, MKK, YNB).
+- 1.0.0 — أول إصدار: تقرير الأداء لجدة ومكة وينبع.
