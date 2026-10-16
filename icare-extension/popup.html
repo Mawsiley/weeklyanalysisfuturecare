@@ -1,26 +1,572 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html dir="rtl" lang="ar">
 <head>
-<meta charset="utf-8">
-<style>
-  body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;width:300px;margin:0;padding:14px;background:#0c1514;color:#e6f2ef;}
-  h1{font-size:15px;margin:0 0 4px;}
-  .sub{font-size:12px;color:#93aca5;margin-bottom:12px;}
-  .st{padding:10px;border-radius:8px;font-size:13px;margin-bottom:12px;border:1px solid #28453e;}
-  .ok{background:rgba(52,211,153,.12);border-color:#34d399;}
-  .bad{background:rgba(224,96,106,.12);border-color:#e0606a;}
-  a.btn{display:block;text-align:center;text-decoration:none;background:#14b8a6;color:#fff;border-radius:8px;padding:9px;margin-top:8px;font-size:13px;font-weight:600;}
-  a.btn.sec{background:#183029;border:1px solid #28453e;}
-  .note{font-size:11px;color:#93aca5;margin-top:12px;line-height:1.6;}
-</style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<title>FutureCare Weekly — iCare Tasks</title>
+<link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <h1><img src="icons/icon32.png" width="20" height="20" alt="" style="vertical-align:-4px;margin-left:6px">FutureCare Weekly — iCare <span id="ver" style="font-size:11px;color:#93aca5;font-weight:400"></span></h1>
-  <div class="sub">تقرير الأداء (جدة، مكة، ينبع) إلى التحليل الأسبوعي</div>
-  <div id="st" class="st">⏳ ...</div>
-  <a class="btn" href="https://weeklyanalysisfuturecare.netlify.app/" target="_blank">📈 فتح التحليل الأسبوعي</a>
-  <a class="btn sec" href="https://icare.com.sa/performance-follow-up/report" target="_blank">🔐 فتح iCare (لتحديث الجلسة)</a>
-  <div class="note">جلسة iCare تبقى داخل المتصفح فقط وتُمسح عند إغلاقه. لا تُرسل إلى صفحة التحليل ولا إلى أي خادم غير iCare.</div>
-  <script src="popup.js"></script>
+
+<div class="header">
+  <img class="logo" src="icons/icon48.png" alt="" style="background:none;padding:0;object-fit:contain">
+  <div class="header-text">
+    <div class="title">FutureCare Weekly — تقارير وتاسكات iCare</div>
+    <div class="status-row">
+      <span class="subtitle" id="icarStatus">يتحقق من الاتصال...</span>
+      <button class="btn-icon" id="refreshStatusBtn" title="تحديث حالة الاتصال">↺</button>
+    </div>
+  </div>
+  <div class="header-actions">
+    <div class="badge">v1.3</div>
+    <button class="btn-icon" id="fullPageBtn" title="فتح الإضافة في صفحة كاملة">⤢</button>
+    <button class="btn-reload" id="reloadBtn" title="إعادة تحميل الإضافة وصفحات iCare">⟳ Reload</button>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab tab-quick active" data-tab="quicktask"><i class="icon">⚡</i> تاسك</button>
+  <button class="tab tab-hv" data-tab="handover"><i class="icon">🔄</i> حوالة</button>
+  <button class="tab" data-tab="record"><i class="icon">⏺</i> تسجيل</button>
+  <button class="tab" data-tab="run"><i class="icon">▶</i> لوبات</button>
+  <button class="tab tab-ai" data-tab="ai"><i class="icon">🤖</i> مساعد</button>
+  <button class="tab" data-tab="log"><i class="icon">📋</i> سجل</button>
+</div>
+
+<!-- ========== TAB: تاسك ========== -->
+<div class="tab-content active" id="tab-quicktask">
+
+  <div class="qt-loop-bar" id="qtLoopBar">
+    <span class="qt-loop-icon">🔄</span>
+    <span class="qt-loop-name" id="qtLoopName">لوب تاسك</span>
+    <button class="btn-sm" id="qtRerecordBtn" title="سجّل خطوات فتح التاسك من جديد">⏺ إعادة تسجيل</button>
+    <button class="btn-sm" id="qtRestoreBtn" title="استرجاع اللوب الافتراضي المدمج">↩ افتراضي</button>
+  </div>
+
+  <div class="field-row" style="margin-top:8px;">
+    <label>الموظف</label>
+    <input type="text" id="qtEmployee" placeholder="اسم الموظف أو القسم (يُكتب في البحث)">
+  </div>
+
+  <!-- حقول التاسك (متغيرات اللوب) -->
+  <div class="task-vars">
+    <div class="tv-field tv-wide">
+      <label for="qtTitle">العنوان <span class="tv-count" id="qtTitleCount">0/35</span></label>
+      <input type="text" id="qtTitle" maxlength="35" data-var="TASK_TITLE" placeholder="مثال: تواصل">
+    </div>
+    <div class="tv-field">
+      <label for="qtType">النوع</label>
+      <input type="text" id="qtType" list="dlType" data-var="TASK_TYPE" placeholder="افتراضي iCare">
+    </div>
+    <div class="tv-field">
+      <label for="qtPriority">الأولوية</label>
+      <input type="text" id="qtPriority" list="dlPriority" data-var="TASK_PRIORITY" placeholder="افتراضي iCare">
+    </div>
+    <div class="tv-field">
+      <label for="qtCategory">الفئة</label>
+      <input type="text" id="qtCategory" list="dlCategory" data-var="TASK_CATEGORY" placeholder="بدون">
+    </div>
+    <div class="tv-field">
+      <label for="qtSubcategory">الفئة الفرعية</label>
+      <input type="text" id="qtSubcategory" list="dlSubcategory" data-var="TASK_SUBCATEGORY" placeholder="بدون">
+    </div>
+    <div class="tv-hint">
+      الحقل الفارغ = يُترك كما هو في iCare. يمكنك كتابة <code>{PTID}</code> و <code>{DATE}</code> داخل العنوان والرسالة.
+      <button class="btn-link" id="qtVarsResetBtn" type="button">القيم الافتراضية</button>
+    </div>
+    <datalist id="dlType"><option value="Medical"><option value="Administrative"><option value="REJECTED"><option value="Maintenance"></datalist>
+    <datalist id="dlPriority"><option value="Normal"><option value="Important"></datalist>
+    <datalist id="dlCategory"><option value="Request"><option value="AMA"><option value="Pharamcy"><option value="Appointments"></datalist>
+    <datalist id="dlSubcategory"><option value="DR"><option value="PT"><option value="Nurse"><option value="Lab"><option value="Specialist"><option value="Other"></datalist>
+  </div>
+
+  <div class="section-label" style="margin-top:8px;">رسالة التاسك</div>
+  <textarea id="qtMessage" rows="3" class="txt-area"
+    placeholder="مثال: المريض يرغب في الاستمرار بالخدمة — يرجى فتح تاسك للتنسيق"></textarea>
+
+  <!-- ── استيراد من Excel: كل صف = تاسك بطبيبه وعنوانه ورسالته ── -->
+  <div class="import-panel" id="impPanel">
+    <div class="imp-drop" id="impDrop">
+      <div class="imp-drop-main">📂 اسحب ملف Excel هنا أو
+        <button class="btn-sm" id="impPickBtn" type="button">اختر ملفاً</button>
+      </div>
+      <div class="imp-hint">xls / xlsx / csv — مثل تقرير Rad. Reports. كل صف = تاسك.
+        <button class="btn-link" id="impFullPageBtn" type="button">فتح في صفحة كاملة للسحب والإفلات</button>
+      </div>
+      <input type="file" id="impFile" accept=".xls,.xlsx,.csv" hidden>
+    </div>
+    <div id="impLoaded" style="display:none">
+      <div class="imp-head">
+        <span class="imp-file" id="impFileName"></span>
+        <span class="qt-count" id="impCount"></span>
+        <button class="btn-sm" id="impReplaceBtn" type="button" title="استيراد ملف Excel آخر بدل هذا">📂 ملف آخر</button>
+        <button class="btn-sm" id="impClearBtn" type="button" title="إلغاء الاستيراد والعودة للإدخال اليدوي">✕ إلغاء</button>
+      </div>
+      <div class="imp-map">
+        <label>رقم الملف<select id="impMap_ptid" class="small-select" data-field="ptid"></select></label>
+        <label>الموظف<select id="impMap_employee" class="small-select" data-field="employee"></select></label>
+        <label>العنوان<select id="impMap_title" class="small-select" data-field="title"></select></label>
+        <label>الرسالة<select id="impMap_message" class="small-select" data-field="message"></select></label>
+      </div>
+      <label class="imp-default">إذا لم يوجد طبيب، أرسل إلى
+        <input type="text" id="impDefaultEmployee" placeholder="مثال: 632">
+      </label>
+      <label class="imp-check" id="impSkipHiddenRow" style="display:none" title="الصفوف التي أخفاها فلتر Excel لا تُرسل">
+        <input type="checkbox" id="impSkipHidden" checked> الصفوف الظاهرة فقط (استبعاد المخفية في Excel: <b id="impHiddenCount">0</b>)</label>
+      <label class="imp-check" title="الصف الذي أُرسل له تاسك من نفس ملف Excel (نفس رقم الملف ونفس الرسالة) لا يُرسل مرة أخرى">
+        <input type="checkbox" id="impSkipSameFile" checked> تخطَّ تلقائياً ما أُرسل سابقاً من نفس الملف</label>
+      <div class="imp-rule" id="impRuleRow" style="display:none">
+        <label>سبب الإرسال
+          <select id="impRule" class="small-select"></select>
+        </label>
+        <div class="imp-rule-info" id="impRuleInfo"></div>
+      </div>
+      <div class="imp-filter">
+        <label>تصفية الصفوف حسب
+          <select id="impFilterCol" class="small-select"></select>
+        </label>
+        <div class="imp-filter-values" id="impFilterValues"></div>
+      </div>
+      <label class="imp-check"><input type="checkbox" id="impClean" checked> تنظيف الرسالة (حذف processNotes و disposition)</label>
+      <div class="imp-notes" id="impNotes"></div>
+      <div class="imp-preview" id="impPreview"></div>
+    </div>
+  </div>
+
+  <div class="section-label" id="qtIdsLabel">أرقام الملفات
+    <span class="muted">(كل رقم في سطر أو مفصول بفاصلة)</span>
+  </div>
+  <div class="qt-toolbar" id="qtIdsToolbar">
+    <button class="btn-sm" id="qtPasteBtn">📋 لصق</button>
+    <button class="btn-sm" id="qtClearIdsBtn">🗑 مسح</button>
+    <span class="qt-count" id="qtCount">0 ملف</span>
+  </div>
+  <textarea id="qtPtidInput" rows="5" class="txt-area ids-area"
+    placeholder="12345&#10;67890&#10;11223&#10;أو: 12345, 67890, 11223"></textarea>
+
+  <div id="qtPreview" style="display:none;">
+    <div class="section-label">معاينة (<span id="qtPreviewCount">0</span>)</div>
+    <div class="qt-chips" id="qtChips"></div>
+  </div>
+
+  <div class="qt-settings">
+    <div class="qt-setting-item">
+      <label>التأخير بين الملفات</label>
+      <input type="number" id="qtDelay" value="3" min="1" max="60" style="width:55px">
+      <span class="hint">ثانية</span>
+    </div>
+    <div class="qt-setting-item">
+      <label>عند الفشل</label>
+      <select id="qtOnFail" class="small-select">
+        <option value="skip">تخطَّ وكمّل</option>
+        <option value="retry">أعد المحاولة مرة</option>
+        <option value="stop">أوقف التشغيل</option>
+      </select>
+    </div>
+    <div class="qt-setting-item human-setting" title="كتابة حرفاً بحرف، نقرات وتوقفات بتوقيت طبيعي كالمستخدم">
+      <label class="human-toggle" title="التشغيل في تبويب منفصل بالخلفية — تصفّح أي صفحة أخرى أثناء التشغيل"><input type="checkbox" id="qtBackground"> 🗂 في الخلفية</label>
+      <label class="human-toggle"><input type="checkbox" id="qtHuman" data-human="enabled"> 🧑 وضع بشري</label>
+      <select id="qtSpeed" class="small-select" data-human="speed">
+        <option value="1.5">بطيء</option>
+        <option value="1">عادي</option>
+        <option value="0.6">سريع</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="qtProgressSection" class="progress-section" style="display:none;">
+    <div class="progress-label" id="qtProgressLabel">جارٍ...</div>
+    <div class="progress-track"><div class="progress-fill" id="qtProgressFill"></div></div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-val green" id="qtStatDone">0</div><div class="stat-lbl">✓ مكتمل</div></div>
+      <div class="stat-card"><div class="stat-val red" id="qtStatFail">0</div><div class="stat-lbl">✗ فشل</div></div>
+      <div class="stat-card"><div class="stat-val" id="qtStatLeft">0</div><div class="stat-lbl">⏳ متبقي</div></div>
+    </div>
+    <div class="qt-results" id="qtResults"></div>
+    <div class="xls-row" id="qtXlsRow" style="display:none">
+      <div class="xls-title">📗 تصدير Excel</div>
+      <div class="xls-controls">
+        <select id="qtXlsWhich" class="small-select">
+          <option value="unverified">لم تظهر رسالة تأكيد</option>
+          <option value="failed">الفاشلة</option>
+          <option value="all">كل الملفات</option>
+        </select>
+        <span class="xls-count" id="qtXlsCount">0</span>
+      </div>
+      <input type="text" id="qtXlsName" class="xls-name" placeholder="اسم ملف Excel">
+      <button class="btn-primary xls-btn" id="qtXlsBtn">⬇ حفظ Excel</button>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-outline" id="qtExportBtn" style="display:none">⬇ النتائج</button>
+    <button class="btn-primary btn-rerun" id="qtRerunBtn" style="display:none" title="إعادة تشغيل الملفات التي لم تكتمل (فشلت / لم تُنفذ / انقطعت) بنفس قيمها">🔁 أكمل غير المكتملة</button>
+    <button class="btn-outline btn-resume-clear" id="qtResumeClearBtn" style="display:none" title="تجاهل الملفات المتبقية (لن تُكمل)">✕</button>
+    <button class="btn-outline" id="qtRetryFailedBtn" style="display:none" title="تحميل غير المكتملة في القائمة لمراجعتها وتعديلها قبل التشغيل">↻ تحميل للتعديل</button>
+    <button class="btn-outline btn-pause" id="qtPauseBtn" style="display:none" title="إيقاف مؤقت بعد اكتمال الملف الحالي — ثم استئناف من حيث توقف">⏸ إيقاف مؤقت</button>
+    <button class="btn-outline btn-danger" id="qtStopBtn" style="display:none" title="إيقاف التشغيل — الملفات المتبقية تُحفظ ويمكن إكمالها لاحقاً بزر 🔁 أكمل المتبقي، حتى بعد إغلاق المتصفح">⏹ إيقاف</button>
+    <button class="btn-outline" id="qtTestBtn" title="تشغيل على أول ملف فقط للتجربة">🧪 تجربة</button>
+    <button class="btn-primary" id="qtRunBtn">⚡ شغّل على الملفات</button>
+  </div>
+
+  <!-- ── الملفات غير النشطة ── -->
+  <div class="deactive-panel" id="deactivePanel">
+    <div class="deactive-header" id="deactiveToggle">
+      <span>📋 الملفات غير النشطة <span class="deactive-badge" id="deactiveBadge">0</span></span>
+      <div class="deactive-header-btns">
+        <button class="btn-sm" id="deactiveExportBtn" title="حفظ Excel">⬇ Excel</button>
+        <button class="btn-sm" id="deactiveClearBtn" title="مسح القائمة">🗑</button>
+        <span class="deactive-chevron" id="deactiveChevron">▸</span>
+      </div>
+    </div>
+    <div id="deactiveListWrap" style="display:none">
+      <div class="deactive-list" id="deactiveListEl"></div>
+      <div class="btn-row" style="margin:6px 10px 8px">
+        <button class="btn-sm" id="deactiveLoadBtn">⬆ انقل الأرقام لقائمة التاسك</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── سجل التاسكات المرسلة ── -->
+  <div class="history-panel" id="historyPanel">
+    <div class="history-header" id="historyToggle">
+      <span>📜 الملفات المرسل لها تاسك <span class="history-badge" id="historyBadge">0</span></span>
+      <div class="deactive-header-btns">
+        <button class="btn-sm" id="historyExportBtn" title="تصدير Excel">⬇ Excel</button>
+        <button class="btn-sm" id="historyClearBtn" title="مسح السجل">🗑</button>
+        <span class="deactive-chevron" id="historyChevron">▸</span>
+      </div>
+    </div>
+    <div id="historyWrap" style="display:none">
+      <input type="text" id="historySearch" class="history-search" placeholder="ابحث برقم الملف أو الموظف…">
+      <div class="history-list" id="historyList"></div>
+    </div>
+  </div>
+
+  <!-- ── ذاكرة أرقام الموظفين ── -->
+  <div class="history-panel staff-panel" id="staffPanel">
+    <div class="history-header" id="staffToggle">
+      <span>👥 أرقام الموظفين <span class="history-badge" id="staffBadge">0</span></span>
+      <div class="deactive-header-btns">
+        <button class="btn-sm" id="staffExportBtn" title="تصدير Excel">⬇ Excel</button>
+        <span class="deactive-chevron" id="staffChevron">▸</span>
+      </div>
+    </div>
+    <div id="staffWrap" style="display:none">
+      <div class="staff-hint">الاسم المحفوظ هنا يُبحث عنه في iCare <b>برقمه الوظيفي</b> بدل الاسم (أدق، ولا التباس بين الأسماء المتشابهة).
+        تُتعلّم الأرقام تلقائياً من اختيار الموظف في iCare ومن أعمدة مثل Staff ("1253 - الاسم")، ويمكنك الإضافة يدوياً — اليدوي له الأولوية.</div>
+      <div class="staff-add">
+        <input type="text" id="staffName" placeholder="اسم الموظف كما في الملف">
+        <input type="text" id="staffId" placeholder="الرقم" inputmode="numeric">
+        <button class="btn-sm" id="staffAddBtn">＋ حفظ</button>
+      </div>
+      <input type="text" id="staffSearch" class="history-search" placeholder="ابحث بالاسم أو الرقم…">
+      <div class="history-list" id="staffList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== TAB: حوالة ========== -->
+<div class="tab-content" id="tab-handover">
+
+  <div class="qt-loop-bar" id="hvLoopBar">
+    <span class="qt-loop-icon">🔄</span>
+    <span class="qt-loop-name" id="hvLoopName">لوب حوالة</span>
+    <button class="btn-sm" id="hvRerecordBtn" title="سجّل خطوات الحوالة من جديد">⏺ إعادة تسجيل</button>
+    <button class="btn-sm" id="hvRestoreBtn" title="استرجاع اللوب الافتراضي المدمج">↩ افتراضي</button>
+  </div>
+
+  <div class="field-row" style="margin-top:8px;">
+    <label>رقم الموظف</label>
+    <input type="text" id="hvStaff" placeholder="رقم الموظف أو GP">
+  </div>
+  <div class="hint-line">يُكتب في خانة البحث داخل قائمة Select staff</div>
+
+  <div class="section-label">أرقام الملفات
+    <span class="muted">(كل رقم في سطر أو مفصول بفاصلة)</span>
+  </div>
+  <div class="qt-toolbar">
+    <button class="btn-sm" id="hvPasteBtn">📋 لصق</button>
+    <button class="btn-sm" id="hvClearIdsBtn">🗑 مسح</button>
+    <span class="qt-count" id="hvCount">0 ملف</span>
+  </div>
+  <textarea id="hvPtidInput" rows="5" class="txt-area ids-area" placeholder="12345&#10;67890&#10;11223"></textarea>
+
+  <div id="hvPreview" style="display:none;">
+    <div class="section-label">معاينة (<span id="hvPreviewCount">0</span>)</div>
+    <div class="qt-chips" id="hvChips"></div>
+  </div>
+
+  <div class="qt-settings">
+    <div class="qt-setting-item">
+      <label>التأخير بين الملفات</label>
+      <input type="number" id="hvDelay" value="4" min="1" max="60" style="width:55px">
+      <span class="hint">ثانية</span>
+    </div>
+    <div class="qt-setting-item">
+      <label>عند الفشل</label>
+      <select id="hvOnFail" class="small-select">
+        <option value="skip">تخطَّ وكمّل</option>
+        <option value="retry">أعد المحاولة مرة</option>
+        <option value="stop">أوقف التشغيل</option>
+      </select>
+    </div>
+    <div class="qt-setting-item human-setting" title="كتابة حرفاً بحرف، نقرات وتوقفات بتوقيت طبيعي كالمستخدم">
+      <label class="human-toggle" title="التشغيل في تبويب منفصل بالخلفية — تصفّح أي صفحة أخرى أثناء التشغيل"><input type="checkbox" id="hvBackground"> 🗂 في الخلفية</label>
+      <label class="human-toggle"><input type="checkbox" id="hvHuman" data-human="enabled"> 🧑 وضع بشري</label>
+      <select id="hvSpeed" class="small-select" data-human="speed">
+        <option value="1.5">بطيء</option>
+        <option value="1">عادي</option>
+        <option value="0.6">سريع</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="hvProgressSection" class="progress-section" style="display:none;">
+    <div class="progress-label" id="hvProgressLabel">جارٍ...</div>
+    <div class="progress-track"><div class="progress-fill" id="hvProgressFill"></div></div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-val green" id="hvStatDone">0</div><div class="stat-lbl">✓ مكتمل</div></div>
+      <div class="stat-card"><div class="stat-val red" id="hvStatFail">0</div><div class="stat-lbl">✗ فشل</div></div>
+      <div class="stat-card"><div class="stat-val" id="hvStatLeft">0</div><div class="stat-lbl">⏳ متبقي</div></div>
+    </div>
+    <div class="qt-results" id="hvResults"></div>
+    <div class="xls-row" id="hvXlsRow" style="display:none">
+      <div class="xls-title">📗 تصدير Excel</div>
+      <div class="xls-controls">
+        <select id="hvXlsWhich" class="small-select">
+          <option value="unverified">لم تظهر رسالة تأكيد</option>
+          <option value="failed">الفاشلة</option>
+          <option value="all">كل الملفات</option>
+        </select>
+        <span class="xls-count" id="hvXlsCount">0</span>
+      </div>
+      <input type="text" id="hvXlsName" class="xls-name" placeholder="اسم ملف Excel">
+      <button class="btn-primary xls-btn" id="hvXlsBtn">⬇ حفظ Excel</button>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-outline" id="hvExportBtn" style="display:none">⬇ النتائج</button>
+    <button class="btn-primary btn-rerun" id="hvRerunBtn" style="display:none" title="إعادة تشغيل الملفات التي لم تكتمل (فشلت / لم تُنفذ / انقطعت) بنفس قيمها">🔁 أكمل غير المكتملة</button>
+    <button class="btn-outline btn-resume-clear" id="hvResumeClearBtn" style="display:none" title="تجاهل الملفات المتبقية (لن تُكمل)">✕</button>
+    <button class="btn-outline" id="hvRetryFailedBtn" style="display:none" title="تحميل غير المكتملة في القائمة لمراجعتها وتعديلها قبل التشغيل">↻ تحميل للتعديل</button>
+    <button class="btn-outline btn-pause" id="hvPauseBtn" style="display:none" title="إيقاف مؤقت بعد اكتمال الملف الحالي — ثم استئناف من حيث توقف">⏸ إيقاف مؤقت</button>
+    <button class="btn-outline btn-danger" id="hvStopBtn" style="display:none" title="إيقاف التشغيل — الملفات المتبقية تُحفظ ويمكن إكمالها لاحقاً بزر 🔁 أكمل المتبقي، حتى بعد إغلاق المتصفح">⏹ إيقاف</button>
+    <button class="btn-outline" id="hvTestBtn" title="تشغيل على أول ملف فقط للتجربة">🧪 تجربة</button>
+    <button class="btn-primary" id="hvRunBtn">🔄 شغّل الحوالة</button>
+  </div>
+</div>
+
+<!-- ========== TAB: تسجيل ========== -->
+<div class="tab-content" id="tab-record">
+
+  <div class="rec-bar" id="recBar">
+    <span class="rec-dot" id="recDot"></span>
+    <span class="rec-label" id="recLabel">جاهز للتسجيل</span>
+    <span class="rec-time" id="recTime">00:00</span>
+    <button class="btn-primary" id="recBtn">⏺ ابدأ</button>
+  </div>
+
+  <div class="hint-line">
+    افتح ملف مريض في iCare، اضغط ابدأ، ثم نفّذ الخطوات يدوياً مرة واحدة.
+    المتغيرات: <code>{PTID}</code> <code>{DATE}</code> <code>{TASK_EMPLOYEE}</code> <code>{TASK_MESSAGE}</code> <code>{TASK_TITLE}</code> <code>{TASK_TYPE}</code> <code>{TASK_PRIORITY}</code> <code>{TASK_CATEGORY}</code> <code>{TASK_SUBCATEGORY}</code> <code>{HANDOVER_STAFF}</code> — القيم المطابقة لحقول تبويب تاسك تتحول لمتغيرات تلقائياً عند الحفظ
+  </div>
+
+  <div class="field-row">
+    <label>اسم اللوب</label>
+    <input type="text" id="loopName" placeholder="مثال: إغلاق ملف المريض">
+  </div>
+  <div class="field-row">
+    <label>الوصف</label>
+    <input type="text" id="loopDesc" placeholder="وصف مختصر">
+  </div>
+  <div class="field-row">
+    <label>التأخير (ms)</label>
+    <input type="number" id="stepDelay" value="800" min="200" max="5000" style="width:80px">
+    <span class="hint">بين كل خطوة وأخرى</span>
+  </div>
+
+  <div class="section-label">الخطوات المسجلة (<span id="stepsCount">0</span>)</div>
+  <div class="steps-list" id="stepsList">
+    <div class="empty">ابدأ التسجيل وتفاعل مع iCare</div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-outline btn-danger" id="clearStepsBtn">🗑 مسح</button>
+    <button class="btn-primary" id="saveLoopBtn">💾 حفظ اللوب</button>
+  </div>
+</div>
+
+<!-- ========== TAB: لوبات / تشغيل ========== -->
+<div class="tab-content" id="tab-run">
+
+  <div class="section-label">اللوبات المحفوظة</div>
+  <div id="savedLoopsList" class="saved-loops"></div>
+
+  <div class="section-label" style="margin-top:10px;">تشغيل لوب مخصص</div>
+  <div class="field-row">
+    <label>اللوب</label>
+    <select id="runLoopSelect"><option value="">— اختر —</option></select>
+  </div>
+  <div class="field-row">
+    <label>PTIDs</label>
+    <textarea id="rnPtidInput" rows="4" placeholder="رقم في كل سطر"></textarea>
+  </div>
+  <div class="qt-settings">
+    <div class="qt-setting-item">
+      <label>التأخير</label>
+      <input type="number" id="rnDelay" value="3" min="1" max="60" style="width:55px">
+      <span class="hint">ثانية</span>
+    </div>
+    <div class="qt-setting-item">
+      <label>عند الفشل</label>
+      <select id="rnOnFail" class="small-select">
+        <option value="skip">تخطَّ وكمّل</option>
+        <option value="retry">أعد المحاولة مرة</option>
+        <option value="stop">أوقف التشغيل</option>
+      </select>
+    </div>
+    <div class="qt-setting-item human-setting" title="كتابة حرفاً بحرف، نقرات وتوقفات بتوقيت طبيعي كالمستخدم">
+      <label class="human-toggle" title="التشغيل في تبويب منفصل بالخلفية — تصفّح أي صفحة أخرى أثناء التشغيل"><input type="checkbox" id="rnBackground"> 🗂 في الخلفية</label>
+      <label class="human-toggle"><input type="checkbox" id="rnHuman" data-human="enabled"> 🧑 وضع بشري</label>
+      <select id="rnSpeed" class="small-select" data-human="speed">
+        <option value="1.5">بطيء</option>
+        <option value="1">عادي</option>
+        <option value="0.6">سريع</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="rnProgressSection" class="progress-section" style="display:none">
+    <div class="progress-label" id="rnProgressLabel">جارٍ...</div>
+    <div class="progress-track"><div class="progress-fill" id="rnProgressFill"></div></div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-val green" id="rnStatDone">0</div><div class="stat-lbl">ناجح</div></div>
+      <div class="stat-card"><div class="stat-val red" id="rnStatFail">0</div><div class="stat-lbl">فشل</div></div>
+      <div class="stat-card"><div class="stat-val" id="rnStatLeft">0</div><div class="stat-lbl">متبقي</div></div>
+    </div>
+    <div class="qt-results" id="rnResults"></div>
+    <div class="xls-row" id="rnXlsRow" style="display:none">
+      <div class="xls-title">📗 تصدير Excel</div>
+      <div class="xls-controls">
+        <select id="rnXlsWhich" class="small-select">
+          <option value="unverified">لم تظهر رسالة تأكيد</option>
+          <option value="failed">الفاشلة</option>
+          <option value="all">كل الملفات</option>
+        </select>
+        <span class="xls-count" id="rnXlsCount">0</span>
+      </div>
+      <input type="text" id="rnXlsName" class="xls-name" placeholder="اسم ملف Excel">
+      <button class="btn-primary xls-btn" id="rnXlsBtn">⬇ حفظ Excel</button>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-outline" id="rnExportBtn" style="display:none">⬇ النتائج</button>
+    <button class="btn-primary btn-rerun" id="rnRerunBtn" style="display:none" title="إعادة تشغيل الملفات التي لم تكتمل (فشلت / لم تُنفذ / انقطعت) بنفس قيمها">🔁 أكمل غير المكتملة</button>
+    <button class="btn-outline btn-resume-clear" id="rnResumeClearBtn" style="display:none" title="تجاهل الملفات المتبقية (لن تُكمل)">✕</button>
+    <button class="btn-outline" id="rnRetryFailedBtn" style="display:none" title="تحميل غير المكتملة في القائمة لمراجعتها وتعديلها قبل التشغيل">↻ تحميل للتعديل</button>
+    <button class="btn-outline btn-pause" id="rnPauseBtn" style="display:none" title="إيقاف مؤقت بعد اكتمال الملف الحالي — ثم استئناف من حيث توقف">⏸ إيقاف مؤقت</button>
+    <button class="btn-outline btn-danger" id="rnStopBtn" style="display:none" title="إيقاف التشغيل — الملفات المتبقية تُحفظ ويمكن إكمالها لاحقاً بزر 🔁 أكمل المتبقي، حتى بعد إغلاق المتصفح">⏹ إيقاف</button>
+    <button class="btn-outline" id="rnTestBtn">🧪 تجربة</button>
+    <button class="btn-primary" id="rnRunBtn">▶ تشغيل</button>
+  </div>
+</div>
+
+<!-- ========== TAB: مساعد ========== -->
+<div class="tab-content" id="tab-ai">
+  <div class="ai-head">
+    <span class="ai-status off" id="aiStatus">غير مفعّل</span>
+    <button class="btn-sm" id="aiSettingsToggle" type="button">⚙ الإعدادات</button>
+    <button class="btn-sm" id="aiClearBtn" type="button" title="مسح المحادثة">🗑</button>
+  </div>
+
+  <div class="ai-settings" id="aiSettings" style="display:none">
+    <div class="ai-privacy">
+      🔒 <b>الخصوصية:</b> يُرسل إلى DeepSeek <b>ملخص فقط</b>: إعدادات التاسك، أعداد الصفوف، أسباب الفشل، أسماء الأطباء، ونصوص الرسائل.
+      <b>لا تُرسل أسماء المرضى ولا أرقام الهوية أبداً.</b> أرقام الملفات تُقنَّع (P1، P2…) ما لم تُلغِ ذلك.
+      DeepSeek خدمة خارجية — تأكد أن سياسة جهة عملك تسمح بذلك.
+    </div>
+    <label class="imp-check"><input type="checkbox" id="aiConsent"> أوافق على إرسال هذه الملخصات إلى DeepSeek</label>
+    <label class="imp-check"><input type="checkbox" id="aiMask" checked> تقنيع أرقام الملفات (P1، P2…) — مستحسن</label>
+    <div class="ai-row">
+      <label>مفتاح API</label>
+      <input type="password" id="aiApiKey" placeholder="sk-…" autocomplete="off">
+      <button class="btn-sm" id="aiSaveKeyBtn" type="button">حفظ</button>
+      <button class="btn-sm" id="aiClearKeyBtn" type="button" title="حذف المفتاح">✕</button>
+      <span class="ai-key-state missing" id="aiKeyState">غير محفوظ</span>
+    </div>
+    <div class="ai-row">
+      <label>النموذج</label>
+      <input type="text" id="aiModel" list="dlAiModels" placeholder="deepseek-chat">
+      <datalist id="dlAiModels"><option value="deepseek-chat"><option value="deepseek-reasoner"></datalist>
+    </div>
+    <div class="hint-line">المفتاح يُحفظ محلياً في هذا المتصفح فقط ولا يُعرض بعد الحفظ. احصل عليه من platform.deepseek.com.</div>
+  </div>
+
+  <div class="ai-quick" id="aiQuick">
+    <span data-q="لماذا فشلت الملفات في آخر تشغيل؟ وما الحل لكل سبب؟">❓ لماذا فشلت؟</span>
+    <span data-q="راجع إعدادات التاسك والملف المستورد قبل التشغيل، هل هناك مشكلة؟">🔎 راجع قبل التشغيل</span>
+    <span data-q="اقترح عنواناً (35 حرفاً كحد أقصى) ورسالة تاسك واضحة ومهذبة للطبيب بناءً على سبب الحالة في الملف المستورد">✍ اقترح عنواناً ورسالة</span>
+    <span data-q="لخص نتيجة آخر تشغيل وما الخطوة التالية">📊 ملخص آخر تشغيل</span>
+  </div>
+
+  <div class="ai-chat" id="aiChat"></div>
+  <div class="ai-thinking" id="aiThinking" style="display:none">🤖 يفكر…</div>
+
+  <div class="ai-input-row">
+    <textarea id="aiInput" rows="2" placeholder="اكتب سؤالك… (Enter للإرسال، Shift+Enter لسطر جديد)"></textarea>
+    <button class="btn-primary" id="aiSendBtn" type="button">إرسال</button>
+  </div>
+</div>
+
+<!-- ========== TAB: سجل ========== -->
+<div class="tab-content" id="tab-log">
+  <div class="log-area" id="logArea"></div>
+  <div class="btn-row" style="margin-top:6px">
+    <button class="btn-outline" id="clearLogBtn">🗑 مسح</button>
+    <button class="btn-outline" id="copyLogBtn">📋 نسخ</button>
+    <button class="btn-outline" id="exportLogBtn">⬇ تصدير</button>
+  </div>
+</div>
+
+<!-- إذن الإرسال لملفات أُرسل لها سابقاً -->
+<dialog id="resendDialog" class="dev-dialog resend-dialog">
+  <div class="dev-dialog-header">
+    <strong id="resendTitle">أُرسل تاسك سابقاً</strong>
+    <button class="btn-icon" id="resendCloseBtn" title="إلغاء">✕</button>
+  </div>
+  <div class="resend-info" id="resendInfo"></div>
+  <div class="resend-tools">
+    <label class="imp-check"><input type="checkbox" id="resendAll"> تحديد الكل لإعادة الإرسال</label>
+  </div>
+  <div class="resend-list" id="resendList"></div>
+  <div class="btn-row">
+    <button class="btn-outline" id="resendCancelBtn">إلغاء التشغيل</button>
+    <button class="btn-outline" id="resendSkipBtn">تخطَّها — الجديد فقط</button>
+    <button class="btn-primary" id="resendOkBtn">متابعة</button>
+  </div>
+</dialog>
+
+<!-- تقرير التشغيل -->
+<dialog id="devReportDialog" class="dev-dialog">
+  <div class="dev-dialog-header">
+    <strong id="devReportTitle">تقرير اللوب</strong>
+    <button class="btn-icon" id="devReportCloseBtn" title="إغلاق">✕</button>
+  </div>
+  <textarea id="devReportText" rows="18" readonly dir="ltr"></textarea>
+  <div class="btn-row">
+    <button class="btn-outline" id="devReportCloseBottomBtn">إغلاق</button>
+    <button class="btn-primary" id="devReportCopyBtn">📋 نسخ النص</button>
+  </div>
+</dialog>
+
+<script src="lib/sheetjs/xlsx.full.min.js"></script>
+<script src="lib/import.js"></script>
+<script src="lib/xlsx.js"></script>
+<script src="popup.js"></script>
+<script src="lib/ai.js"></script>
 </body>
 </html>

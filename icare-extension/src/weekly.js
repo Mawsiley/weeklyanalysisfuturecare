@@ -1,7 +1,8 @@
+// FutureCare Weekly — performance report fetch + hand-over to the task window (loaded by src/background.js).
+(() => {
 // FutureCare Weekly — iCare Reports (service worker).
 // Holds the iCare session token (memory only) and fetches the Performance Follow-up report for the
 // weekly analysis site. Only the origins in PAGE_ORIGINS may ask for data.
-'use strict';
 
 const API_BASE = 'https://api.fc.med.sa/api';
 const ICARE_HEADERS = { 'x-icare-client': 'web/2316', 'x-icare-frontend-host': 'icare.com.sa', Accept: 'application/json' };
@@ -109,7 +110,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if(msg && msg.type === 'FCW_STATUS'){
     if(!PAGE_ORIGINS.includes(from) && sender.id !== chrome.runtime.id) return;
-    getToken().then(t => sendResponse({ ok: true, hasToken: !!t.token, tokenAt: t.at, version: chrome.runtime.getManifest().version }));
+    getToken().then(t => sendResponse({ ok: true, hasToken: !!t.token, tokenAt: t.at, version: chrome.runtime.getManifest().version, tasks: true }));
+    return true;
+  }
+  // The weekly site hands over its current report: the task window opens with it imported, for review.
+  // Nothing is sent to iCare until the user starts the run there.
+  if(msg && msg.type === 'FCW_OPEN_TASKS'){
+    if(!PAGE_ORIGINS.includes(from)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
+    const name = String(msg.name || 'report.xls').replace(/\.html?$/i, '.xls').slice(0, 120);
+    const b64 = String(msg.b64 || '');
+    if(!b64 || b64.length > 40e6) { sendResponse({ ok: false, code: 'BAD_FILE' }); return; }
+    chrome.storage.local.set({ pendingAppImport: { name, b64, at: Date.now() } })
+      .then(() => chrome.tabs.create({ url: chrome.runtime.getURL('popup.html?full=1&fromApp=1') }))
+      .then(() => sendResponse({ ok: true }), e => sendResponse({ ok: false, code: 'EXTENSION_ERROR', error: e.message }));
     return true;
   }
   if(msg && msg.type === 'FCW_FETCH_PERFORMANCE'){
@@ -118,3 +131,4 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 });
+})();

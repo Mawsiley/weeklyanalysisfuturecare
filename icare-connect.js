@@ -37,7 +37,9 @@
     const cities=Object.keys(res.counts||{}).join('-');
     return new File([u16.buffer],`performance-report_${res.month}_${cities||'icare'}.xls`,{type:'application/vnd.ms-excel'});
   }
+  let lastFile=null; // report currently loaded in this page (fetched or uploaded) — for opening tasks
   function feed(file){
+    lastFile=file;
     const input=document.querySelector(cfg.input);if(!input)throw Error('لم يتم العثور على حقل رفع الملف في هذه الصفحة');
     const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
   }
@@ -49,17 +51,21 @@
       <div class="row"><b>📥 جلب ${esc(src.label)} من iCare</b>
       <label>الشهر <input type="month" id="icareMonth" value="${thisMonth()}"></label>
       ${Object.entries(src.cities).map(([k,v])=>`<label><input type="checkbox" class="icareCity" value="${k}" checked> ${v}</label>`).join('')}
-      <button type="button" id="icareFetch">جلب الآن</button></div>
+      <button type="button" id="icareFetch">جلب الآن</button>
+      <button type="button" id="icareTasks" hidden title="يفتح نافذة التاسكات في الإضافة مع هذا التقرير للمراجعة — لا يُرسل شيء قبل أن تبدأ التشغيل هناك">📨 فتح تاسكات iCare من هذا التقرير</button></div>
       <div class="msg" id="icareMsg" role="status">⏳ التحقق من إضافة iCare…</div>
       <div class="how">المصدر: <a href="${src.url}" target="_blank" rel="noopener">${esc(src.url.replace('https://',''))}</a> — ${esc(cfg.how)}</div>`;
     anchor.parentNode.insertBefore(box,anchor);
-    const msg=box.querySelector('#icareMsg'),btn=box.querySelector('#icareFetch');
+    const msg=box.querySelector('#icareMsg'),btn=box.querySelector('#icareFetch'),tbtn=box.querySelector('#icareTasks');
+    let tasksOk=false;const syncTasks=()=>{tbtn.hidden=!tasksOk;tbtn.disabled=!lastFile};
+    const input=document.querySelector(cfg.input);input&&input.addEventListener('change',()=>{if(input.files&&input.files[0]){lastFile=input.files[0];syncTasks()}});
+    anchor.addEventListener('drop',e=>{const f=e.dataTransfer&&e.dataTransfer.files[0];if(f){lastFile=f;syncTasks()}},true);
     let received='';const say=(t,err)=>{msg.textContent=t;msg.className='msg'+(err?' err':'')};
     btn.disabled=true;
     ask('STATUS').then(s=>{
       if(received)return; // a report from the main page is already shown
       if(!s.ok){say(ERR.NO_EXTENSION+' ثبّتها من مجلد "FutureCare Weekly iCare" على سطح المكتب (chrome://extensions ← Load unpacked).',true);return}
-      btn.disabled=false;
+      btn.disabled=false;tasksOk=!!s.tasks;syncTasks();
       say(s.hasToken?`✅ متصل بجلسة iCare (الإضافة ${s.version}).`:'⚠️ الإضافة جاهزة لكن لا توجد جلسة iCare — افتح iCare وسجّل الدخول.',!s.hasToken);
     });
     btn.onclick=async()=>{
@@ -75,10 +81,17 @@
       const parts=Object.entries(r.counts).map(([c,n])=>`${src.cities[c]}: ${n}`).join(' | ');
       const summary=`${r.rows.length} مريض (${parts}) — شهر ${r.month}، جُلب ${new Date(r.fetchedAt).toLocaleTimeString('ar-SA')}`;
       say(`✅ تم جلب ${r.rows.length} مريض من iCare (${parts})${r.missing.length?` — لم توجد: ${r.missing.map(c=>src.cities[c]).join('، ')}`:''}. وقت الجلب ${new Date(r.fetchedAt).toLocaleTimeString('ar-SA')}.`);
-      share(file,summary);
+      syncTasks();share(file,summary);
     };
     // Receive a report fetched in the main page (this page embedded as a tab) without fetching again.
-    window.__icareReceive=(file,summary)=>{try{feed(file);received=summary;btn.disabled=false;say('📥 نفس التقرير المجلوب في الصفحة الرئيسية: '+summary)}catch(e){say(e.message,true)}};
+    tbtn.onclick=async()=>{
+      if(!lastFile)return say('حمّل التقرير أو اجلبه أولاً.',true);
+      tbtn.disabled=true;say('⏳ فتح نافذة التاسكات…');
+      const r=await ask('OPEN_TASKS',{name:lastFile.name,buffer:await lastFile.arrayBuffer()},30000);
+      tbtn.disabled=false;
+      say(r.ok?`📨 فُتحت نافذة التاسكات في تبويب جديد مع «${lastFile.name}». راجع القاعدة (سبب الإرسال) والحالات، ثم ابدأ التشغيل من هناك — لا يُرسل شيء قبل ذلك.`:(ERR[r.code]||'تعذّر فتح نافذة التاسكات: '+r.code),!r.ok);
+    };
+    window.__icareReceive=(file,summary)=>{try{feed(file);syncTasks();received=summary;btn.disabled=false;say('📥 نفس التقرير المجلوب في الصفحة الرئيسية: '+summary)}catch(e){say(e.message,true)}};
     if(window!==window.top){
       // after the page's own load handlers have attached to its file input
       const pull=()=>setTimeout(()=>{try{const s=window.parent.__icareShared;if(s&&s.source===cfg.source)window.__icareReceive(s.file,s.summary)}catch{}},0);

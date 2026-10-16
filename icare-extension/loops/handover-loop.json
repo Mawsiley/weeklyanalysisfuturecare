@@ -1,0 +1,56 @@
+{
+  "id": 9000000000002,
+  "name": "حوالة",
+  "desc": "تحويل تسليم الطبيب للموظف المحدد في صفحة physician-handover",
+  "steps": [
+    {
+      "type": "navigate",
+      "url": "https://icare.com.sa/physician-handover?view=report&ptid=%7BPTID%7D"
+    },
+    {
+      "type": "click",
+      "selector": "button[role=\"combobox\"]",
+      "text": "Select staff",
+      "alt": [
+        "اختر الموظف",
+        "اختر موظف"
+      ]
+    },
+    {
+      "type": "input",
+      "selector": "input[placeholder=\"Search…\"]",
+      "value": "{HANDOVER_STAFF}",
+      "placeholder": "Search…",
+      "search": true
+    },
+    {
+      "type": "selectFirstOption",
+      "selector": "[role=\"option\"]",
+      "match": "{HANDOVER_STAFF}"
+    },
+    {
+      "type": "clickText",
+      "text": "Assign",
+      "alt": [
+        "تعيين",
+        "إسناد"
+      ]
+    },
+    {
+      "type": "clickText",
+      "text": "Confirm",
+      "commit": true,
+      "alt": [
+        "تأكيد"
+      ]
+    },
+    {
+      "type": "verify",
+      "goneText": "Confirm|تأكيد",
+      "timeout": 8000
+    }
+  ],
+  "stepDelay": 1200,
+  "created": "2026-08-30T00:00:00.000Z",
+  "builtinVersion": 3
+}

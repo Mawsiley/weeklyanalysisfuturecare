@@ -1,19 +1,38 @@
 {
   "manifest_version": 3,
-  "name": "FutureCare Weekly — iCare Reports",
-  "version": "1.0.3",
-  "description": "يجلب تقرير الأداء (جدة، مكة، ينبع) من iCare بجلسة المستخدم إلى تطبيق التحليل الأسبوعي FutureCare.",
+  "name": "FutureCare Weekly — iCare Reports & Tasks",
+  "version": "1.1.0",
+  "description": "تقرير الأداء (جدة، مكة، ينبع) من iCare إلى التحليل الأسبوعي، وفتح التاسكات والحوالات في iCare كـ loop من نفس التقرير.",
   "permissions": [
-    "storage"
+    "storage",
+    "tabs",
+    "activeTab",
+    "scripting",
+    "tabGroups",
+    "unlimitedStorage"
   ],
   "host_permissions": [
     "https://icare.com.sa/*",
+    "https://*.icare.com.sa/*",
+    "https://api.deepseek.com/*",
     "https://api.fc.med.sa/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "src/background.js"
   },
   "content_scripts": [
+    {
+      "matches": [
+        "https://icare.com.sa/*",
+        "https://*.icare.com.sa/*"
+      ],
+      "js": [
+        "src/recorder.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true,
+      "match_about_blank": true
+    },
     {
       "matches": [
         "https://icare.com.sa/*"
@@ -37,7 +56,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "FutureCare Weekly — iCare Reports",
+    "default_title": "FutureCare Weekly — iCare Reports & Tasks",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"

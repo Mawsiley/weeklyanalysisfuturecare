@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Mock Quick Task</title>
+<style>
+body{font-family:sans-serif;padding:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:600px}
+[role=listbox]{border:1px solid #ccc;padding:4px;background:#fff}
+[role=option]{padding:3px;cursor:pointer}
+</style></head>
+<body>
+<!-- نموذج Quick Task داخل صفحة المريض: العناوين span وليست label، والحقول حسب الترتيب -->
+<div role="dialog" id="qt">
+  <form onsubmit="return false">
+    <div class="grid grid-cols-1" id="g">
+      <div><div class="flex flex-col"><span>Assign to *</span><button type="button" class="gap-2 cursor-pointer" data-k="staff">-- staff --</button></div></div>
+      <div><div class="flex flex-col"><span>Task Type *</span><button type="button" class="gap-2 cursor-pointer" data-k="type" data-opts="Medical,Administrative">Medical</button></div></div>
+      <div><div class="flex flex-col"><span>Priority</span><button type="button" class="gap-2 cursor-pointer" data-k="prio" data-opts="Normal,Important">Normal</button></div></div>
+      <div><div class="flex flex-col"><span>Category *</span><button type="button" class="gap-2 cursor-pointer" data-k="cat" data-opts="Request,AMA">--</button></div></div>
+      <div><div class="flex flex-col"><span>Sub Category</span><button type="button" class="gap-2 cursor-pointer" data-k="sub" data-opts="DR,PT">--</button></div></div>
+      <div class="md:col-span-2 lg:col-span-2"><span>Title *</span><input class="flex h-9" id="title"></div>
+    </div>
+    <div><div class="relative"><textarea class="flex min-h-[60px]" id="desc"></textarea></div></div>
+    <button type="submit" id="submit">Create Task</button>
+  </form>
+</div>
+<script>
+const state = {};
+let open = null;
+function closeList(){ document.querySelectorAll('[role=listbox]').forEach(l => l.remove()); open = null; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeList(); });
+document.querySelectorAll('button[data-k]').forEach(b => b.addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'mouse') return;
+  closeList(); open = b.dataset.k;
+  const list = document.createElement('div'); list.setAttribute('role', 'listbox');
+  if (open === 'staff') {
+    list.innerHTML = '<input placeholder="Search name or dept…" id="s"><div id="res"></div>';
+    setTimeout(() => { const s = document.getElementById('s'); s.addEventListener('input', () => setTimeout(() => {
+      document.getElementById('res').innerHTML = ['632 — PEx Department PEx', 'Ahmed (GP)'].filter(x => x.toLowerCase().includes(s.value.toLowerCase())).map(x => '<div role="option">' + x + '</div>').join('');
+    }, 300)); }, 0);
+  } else list.innerHTML = b.dataset.opts.split(',').map(o => '<div role="option">' + o + '</div>').join('');
+  list.addEventListener('click', ev => { const o = ev.target.closest('[role=option]'); if (!o) return; state[b.dataset.k] = o.textContent; b.textContent = o.textContent; closeList(); });
+  document.body.appendChild(list);
+}));
+document.getElementById('submit').addEventListener('click', () => { state.submitted = (state.submitted || 0) + 1; state.title = title.value; state.desc = desc.value; });
+window.mockState = state;
+window.__listeners = [];
+window.chrome = { runtime: { id: 't', onMessage: { addListener: f => __listeners.push(f), removeListener() {} }, sendMessage: () => Promise.resolve({}) } };
+window.execStep = step => new Promise(res => __listeners.forEach(f => f({ action: 'EXECUTE_STEP', step }, {}, res)));
+</script>
+<script src="/extension/src/recorder.js"></script>
+</body></html>

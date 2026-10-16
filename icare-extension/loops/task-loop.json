@@ -1,0 +1,138 @@
+{
+  "id": 9000000000001,
+  "name": "تاسك",
+  "desc": "فتح Quick Task للمريض وتعبئة: الموظف، النوع، الأولوية، الفئة، الفئة الفرعية، العنوان، الوصف — ثم إنشاء المهمة والتحقق",
+  "steps": [
+    {
+      "type": "navigate",
+      "url": "https://icare.com.sa/patient-info?ptid=%7BPTID%7D",
+      "title": "Patient File | iCare"
+    },
+    {
+      "type": "click",
+      "selector": "div:nth-of-type(6) > div.grid.grid-cols-1 > a.inline-flex.w-full:nth-of-type(1)",
+      "text": "Quick Task",
+      "tag": "a",
+      "alt": [
+        "مهمة سريعة"
+      ]
+    },
+    {
+      "type": "click",
+      "selector": "div:nth-of-type(1) > div.flex.flex-col > button.gap-2.cursor-pointer",
+      "text": "-- staff --",
+      "tag": "button",
+      "label": "تعيين إلى|Assign To"
+    },
+    {
+      "type": "input",
+      "selector": "input[placeholder=\"Search name or dept…\"], input[placeholder=\"ابحث بالاسم أو القسم...\"]",
+      "value": "{TASK_EMPLOYEE}",
+      "placeholder": "Search name or dept…",
+      "search": true
+    },
+    {
+      "type": "selectFirstOption",
+      "selector": "[role=\"option\"]",
+      "match": "{TASK_EMPLOYEE}"
+    },
+    {
+      "type": "click",
+      "tag": "button",
+      "label": "النوع|Type|Task Type|نوع المهمة",
+      "skipIf": "{TASK_TYPE}",
+      "selector": "div:nth-of-type(2) > div.flex.flex-col > button.gap-2.cursor-pointer",
+      "optional": true,
+      "group": "type"
+    },
+    {
+      "type": "customSelect",
+      "selector": "[role=\"option\"]",
+      "text": "{TASK_TYPE}",
+      "value": "{TASK_TYPE}",
+      "skipIf": "{TASK_TYPE}",
+      "group": "type",
+      "optional": true
+    },
+    {
+      "type": "click",
+      "tag": "button",
+      "label": "الأولوية|Priority",
+      "skipIf": "{TASK_PRIORITY}",
+      "selector": "div:nth-of-type(3) > div.flex.flex-col > button.gap-2.cursor-pointer",
+      "optional": true,
+      "group": "priority"
+    },
+    {
+      "type": "customSelect",
+      "selector": "[role=\"option\"]",
+      "text": "{TASK_PRIORITY}",
+      "value": "{TASK_PRIORITY}",
+      "skipIf": "{TASK_PRIORITY}",
+      "group": "priority",
+      "optional": true
+    },
+    {
+      "type": "click",
+      "tag": "button",
+      "label": "الفئة|Category",
+      "skipIf": "{TASK_CATEGORY}",
+      "selector": "div:nth-of-type(4) > div.flex.flex-col > button.gap-2.cursor-pointer",
+      "text": "--"
+    },
+    {
+      "type": "customSelect",
+      "selector": "[role=\"option\"]",
+      "text": "{TASK_CATEGORY}",
+      "value": "{TASK_CATEGORY}",
+      "skipIf": "{TASK_CATEGORY}"
+    },
+    {
+      "type": "click",
+      "tag": "button",
+      "label": "الفئة الفرعية|Sub Category|Subcategory|Sub-category",
+      "skipIf": "{TASK_SUBCATEGORY}",
+      "selector": "div:nth-of-type(5) > div.flex.flex-col > button.gap-2.cursor-pointer",
+      "text": "--"
+    },
+    {
+      "type": "customSelect",
+      "selector": "[role=\"option\"]",
+      "text": "{TASK_SUBCATEGORY}",
+      "value": "{TASK_SUBCATEGORY}",
+      "skipIf": "{TASK_SUBCATEGORY}"
+    },
+    {
+      "type": "input",
+      "selector": "div.grid.grid-cols-1:nth-of-type(1) > div.md\\:col-span-2.lg\\:col-span-2:nth-of-type(6) > input.flex.h-9",
+      "value": "{TASK_TITLE}",
+      "placeholder": "",
+      "label": "العنوان|Title|Subject"
+    },
+    {
+      "type": "input",
+      "selector": "div:nth-of-type(3) > div.relative > textarea.flex.min-h-\\[60px\\]",
+      "value": "{TASK_MESSAGE}",
+      "placeholder": "",
+      "label": "الوصف|Description"
+    },
+    {
+      "type": "click",
+      "selector": "button[type=\"submit\"]",
+      "text": "Create Task",
+      "tag": "button",
+      "commit": true,
+      "alt": [
+        "إنشاء المهمة"
+      ]
+    },
+    {
+      "type": "verify",
+      "goneText": "Create Task|إنشاء المهمة",
+      "timeout": 8000
+    }
+  ],
+  "stepDelay": 800,
+  "created": "2026-08-30T00:00:00.000Z",
+  "builtinVersion": 14
+}

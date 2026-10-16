@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Mock iCare</title>
+<style>
+body{font-family:sans-serif;padding:20px}
+.pop{border:1px solid #ccc;padding:6px;margin:4px 0;width:260px}
+[role=option]{padding:4px;cursor:pointer}
+.toast{position:fixed;bottom:10px;right:10px;background:#dfd;padding:8px}
+.badge{background:#fdd;padding:2px 6px}
+</style></head>
+<body>
+<h3>Patient <span class="badge" id="status">Active</span></h3>
+
+<!-- Task form (mimics Quick Task) -->
+<form id="taskForm" onsubmit="return false">
+  <div class="field"><label>Assign To</label>
+    <button type="button" id="staffBtn" class="gap-2 cursor-pointer">-- staff --</button>
+    <div id="staffPop" class="pop" style="display:none">
+      <input placeholder="Search name or dept…" id="staffSearch">
+      <div id="staffList"></div>
+    </div>
+  </div>
+  <div class="field"><label>Type</label>
+    <button type="button" id="typeBtn" class="gap-2 cursor-pointer">--</button>
+    <div id="typePop" class="pop" style="display:none">
+      <div role="option">Requested item</div><div role="option">Request</div>
+    </div>
+  </div>
+  <div class="field"><label>Priority</label>
+    <button type="button" id="prioBtn" class="gap-2 cursor-pointer">--</button>
+    <div id="prioPop" class="pop" style="display:none">
+      <div role="option">DRAFT</div><div role="option">DR</div>
+    </div>
+  </div>
+  <div class="field"><label>Subject</label><input id="subject"></div>
+  <div class="field"><label>Message</label><textarea id="msg"></textarea></div>
+  <button type="submit" id="submitBtn">Create Task</button>
+</form>
+<div id="out"></div>
+
+<script>
+const STAFF = ['Ahmed Ali (GP)', 'PEX Department', 'Sara (Nursing)', 'pex-2 backup'];
+const state = { staff: '', type: '', prio: '', clicks: {} };
+function count(k){ state.clicks[k]=(state.clicks[k]||0)+1; }
+
+// Staff button: Popover-like opens on click (toggle)
+staffBtn.addEventListener('click', () => { count('staffBtn'); staffPop.style.display = staffPop.style.display==='none'?'block':'none'; renderStaff(''); });
+function renderStaff(q){
+  // async server search with delay — stale list shown first
+  setTimeout(() => {
+    const items = STAFF.filter(s => s.toLowerCase().includes(q.toLowerCase()));
+    staffList.innerHTML = items.length ? items.map(s => '<div role="option">'+s+'</div>').join('') : '<div role="option" aria-disabled="true">No results</div>';
+  }, q ? 500 : 0);
+}
+staffSearch.addEventListener('input', e => renderStaff(e.target.value));
+staffList.addEventListener('click', e => { const o=e.target.closest('[role=option]'); if(!o||o.getAttribute('aria-disabled'))return; count('staffPick'); state.staff=o.textContent; staffBtn.textContent=o.textContent; staffPop.style.display='none'; });
+
+// Type/Prio: Radix Select-like — opens on pointerdown (mouse), click ignored
+for (const [btn,pop,key] of [[typeBtn,typePop,'type'],[prioBtn,prioPop,'prio']]) {
+  btn.addEventListener('pointerdown', e => { if(e.pointerType==='mouse'){ count(key+'Open'); pop.style.display='block'; } });
+  pop.addEventListener('click', e => { const o=e.target.closest('[role=option]'); if(!o)return; state[key]=o.textContent; btn.textContent=o.textContent; pop.style.display='none'; });
+}
+
+submitBtn.addEventListener('click', () => {
+  count('submit');
+  if (!state.staff || !subject.value || !msg.value) {
+    const t=document.createElement('div'); t.className='toast'; t.setAttribute('role','alert'); t.textContent='Error: fields are required'; document.body.appendChild(t); return;
+  }
+  setTimeout(() => {
+    taskForm.style.display='none';
+    const t=document.createElement('div'); t.className='toast'; t.setAttribute('role','status'); t.textContent='Task created successfully'; document.body.appendChild(t);
+  }, 600);
+});
+window.mockState = state;
+</script>
+
+<!-- Fake chrome API so the content script can run -->
+<script>
+window.__listeners = [];
+window.chrome = { runtime: {
+  id: 'test',
+  onMessage: { addListener: f => __listeners.push(f), removeListener: f => { __listeners = __listeners.filter(x=>x!==f); } },
+  sendMessage: (m) => { (window.__sent = window.__sent || []).push(m); return Promise.resolve({ ok: true, recording: false }); }
+}};
+window.execStep = (step) => new Promise(resolve => {
+  let async = false;
+  __listeners.forEach(f => { const r = f({ action: 'EXECUTE_STEP', step, num: 1 }, {}, resolve); if (r === true) async = true; });
+});
+</script>
+<script src="/extension/src/recorder.js"></script>
+</body></html>
