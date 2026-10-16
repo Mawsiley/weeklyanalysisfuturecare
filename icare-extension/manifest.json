@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FutureCare Weekly — iCare Reports & Tasks",
-  "version": "1.1.0",
-  "description": "تقرير الأداء (جدة، مكة، ينبع) من iCare إلى التحليل الأسبوعي، وفتح التاسكات والحوالات في iCare كـ loop من نفس التقرير.",
+  "version": "1.2.0",
+  "description": "التحليل الأسبوعي داخل الإضافة: تقرير الأداء (جدة، مكة، ينبع) من iCare، ملخص وأطباء، وفتح التاسكات والحوالات كـ loop — متزامن مع موقع التحليل.",
   "permissions": [
     "storage",
     "tabs",

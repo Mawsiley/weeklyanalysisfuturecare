@@ -126,9 +126,57 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if(msg && msg.type === 'FCW_FETCH_PERFORMANCE'){
+    if(!PAGE_ORIGINS.includes(from) && !fromExtensionPage(sender)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
+    fetchPerformance(msg).then(async r => {
+      if(r.ok && r.rows.length) await keepReport({ name: `performance-report_${r.month}_${Object.keys(r.counts).join('-')}.xls`, b64: reportB64(r), source: 'icare', month: r.month, counts: r.counts });
+      sendResponse(r);
+    });
+    return true;
+  }
+  // Sync with the weekly site: the report loaded there (fetched or uploaded) and the task rules.
+  if(msg && msg.type === 'FCW_SYNC_REPORT'){
     if(!PAGE_ORIGINS.includes(from)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
-    fetchPerformance(msg).then(sendResponse);
+    const b64 = String(msg.b64 || '');
+    if(!b64 || b64.length > 40e6) { sendResponse({ ok: false, code: 'BAD_FILE' }); return; }
+    keepReport({ name: String(msg.name || 'report.xls').slice(0, 120), b64, source: 'site' }).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+  if(msg && msg.type === 'FCW_SYNC_RULES'){
+    if(!PAGE_ORIGINS.includes(from)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
+    syncRules(msg).then(sendResponse);
     return true;
   }
 });
+
+function fromExtensionPage(sender){
+  return !sender.tab && String(sender.url || '').startsWith('chrome-extension://' + chrome.runtime.id + '/');
+}
+// Latest report (from iCare or from the site) kept for the extension's 📊 tab — same file format as iCare's export.
+async function keepReport(rep){
+  await chrome.storage.local.set({ weeklyReport: { ...rep, at: Date.now() } });
+}
+function reportB64(r){
+  const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const html = '<html><head><meta charset="utf-8"></head><body><table><tr>' + r.headers.map(h => `<th>${esc(h)}</th>`).join('') + '</tr>' +
+    r.rows.map(row => '<tr>' + row.map(c => `<td>${esc(c)}</td>`).join('') + '</tr>').join('') + '</table></body></html>';
+  const bytes = new Uint8Array(2 + html.length * 2);
+  bytes[0] = 0xFF; bytes[1] = 0xFE;
+  for(let i = 0; i < html.length; i++){ const c = html.charCodeAt(i); bytes[2 + i * 2] = c & 255; bytes[3 + i * 2] = c >> 8; }
+  let bin = '';
+  for(let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+// Task rules: the newer copy wins (site or extension window); the reply carries the winning copy.
+async function syncRules({ cfg, at }){
+  const { weeklyTaskRules: mine } = await chrome.storage.local.get('weeklyTaskRules');
+  const theirsAt = Number(at) || 0;
+  if(cfg && typeof cfg === 'object' && theirsAt > ((mine && mine.at) || 0)){
+    const json = JSON.stringify(cfg);
+    if(json.length > 200000) return { ok: false, code: 'TOO_LARGE' };
+    const copy = JSON.parse(json);
+    await chrome.storage.local.set({ weeklyTaskRules: { cfg: copy, at: theirsAt } });
+    return { ok: true, cfg: copy, at: theirsAt };
+  }
+  return { ok: true, cfg: mine ? mine.cfg : null, at: mine ? mine.at : 0 };
+}
 })();

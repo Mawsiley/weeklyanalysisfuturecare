@@ -39,8 +39,10 @@
     return new File([u16.buffer],`performance-report_${res.month}_${cities||'icare'}.xls`,{type:'application/vnd.ms-excel'});
   }
   let lastFile=null; // report currently loaded in this page (fetched or uploaded) — for opening tasks
+  // keep the extension's 📊 tab in step with the report loaded here (main page only; silent if no extension)
+  const pushReport=file=>{if(window!==window.top||!file)return;file.arrayBuffer().then(buffer=>ask('SYNC_REPORT',{name:file.name,buffer},15000)).catch(()=>{})};
   function feed(file){
-    lastFile=file;
+    lastFile=file;pushReport(file);
     const input=document.querySelector(cfg.input);if(!input)throw Error('لم يتم العثور على حقل رفع الملف في هذه الصفحة');
     const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
   }
@@ -59,8 +61,8 @@
     anchor.parentNode.insertBefore(box,anchor);
     const msg=box.querySelector('#icareMsg'),btn=box.querySelector('#icareFetch'),tbtn=box.querySelector('#icareTasks');
     let tasksOk=false;const syncTasks=()=>{tbtn.hidden=!tasksOk;tbtn.disabled=!lastFile};
-    const input=document.querySelector(cfg.input);input&&input.addEventListener('change',()=>{if(input.files&&input.files[0]){lastFile=input.files[0];syncTasks()}});
-    anchor.addEventListener('drop',e=>{const f=e.dataTransfer&&e.dataTransfer.files[0];if(f){lastFile=f;syncTasks()}},true);
+    const input=document.querySelector(cfg.input);input&&input.addEventListener('change',()=>{if(input.files&&input.files[0]&&input.files[0]!==lastFile){lastFile=input.files[0];pushReport(lastFile);syncTasks()}});
+    anchor.addEventListener('drop',e=>{const f=e.dataTransfer&&e.dataTransfer.files[0];if(f){lastFile=f;pushReport(f);syncTasks()}},true);
     let received='';const say=(t,err)=>{msg.textContent=t;msg.className='msg'+(err?' err':'')};
     btn.disabled=true;
     ask('STATUS').then(s=>{

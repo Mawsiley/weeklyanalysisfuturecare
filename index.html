@@ -784,7 +784,9 @@ const TASK_FIELDS=[['type','TASK_TYPE','النوع'],['priority','TASK_PRIORITY'
 let taskCfg=(()=>{try{return JSON.parse(localStorage.getItem(TASK_STORE)||'{}')}catch{return{}}})();
 const taskState={reason:'',doctor:'',q:'',off:new Set(),ext:null};
 const taskRule=id=>({...TASK_RULES_DEFAULT.find(r=>r.id===id),...((taskCfg.rules||{})[id]||{})});
-const saveTaskCfg=()=>localStorage.setItem(TASK_STORE,JSON.stringify(taskCfg));
+const saveTaskCfg=(fromExt)=>{if(!fromExt)taskCfg._at=Date.now();localStorage.setItem(TASK_STORE,JSON.stringify(taskCfg));if(!fromExt)syncTaskRules()};
+// rules are shared with the extension's 📊 tab: the newer copy wins
+async function syncTaskRules(){if(!window.fcIcare)return;const r=await window.fcIcare.ask('SYNC_RULES',{cfg:taskCfg,at:taskCfg._at||0},15000);if(r&&r.ok&&r.cfg&&(r.at||0)>(taskCfg._at||0)){taskCfg={...r.cfg,_at:r.at};saveTaskCfg(true);if($('p-tasksapp')?.classList.contains('active'))renderTasks()}}
 const taskFallback=()=>txt(taskCfg.fallback)||'632';
 const rawNum=(x,k)=>num(String(pick(x.raw,k)).replace(/[^\d.-]/g,''));
 function taskCases(){
@@ -805,7 +807,7 @@ function taskCases(){
 function taskVisible(all){const q=norm(taskState.q);return all.filter(c=>(!taskState.reason||c.rule.id===taskState.reason)&&(!taskState.doctor||c.doctor===taskState.doctor)&&(!q||norm(`${c.ptid} ${c.doctor} ${c.r.note}`).includes(q)))}
 function taskSelected(){return taskVisible(taskCases()).filter(c=>!taskState.off.has(c.ptid))}
 function taskWorkbook(list){
-  const H=['PTID','Case Doctor','Status','Reason','Task Type','Task Priority','Task Category','Task Subcategory','Rule','Doctor','City','DR P','DR D','GP Note'];
+  const H=['PTID','Case Doctor','Status','Reason','Task Type','Task Priority','Task Category','Task Subcategory','Rule','Doctor','City','DR P (report)','DR D (report)','GP Note (report)'];
   const f=k=>txt((taskCfg.fields||{})[k]);
   const aoa=[H,...list.map(c=>[c.ptid,c.employee,c.title,c.message,f('type'),f('priority'),f('category'),f('subcategory'),c.rule.id,c.doctor,c.x.city,c.r.p,c.r.d,c.r.note])];
   const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!cols']=H.map((h,i)=>({wch:[10,22,30,60][i]||14}));ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:aoa.length-1,c:H.length-1}})};
@@ -840,14 +842,14 @@ function renderTasks(){
   </tbody></table></div>${vis.length>1500?'<p class="taskHint">يُعرض أول 1500 حالة — الإرسال يشمل كل المحدد.</p>':''}
   <div class="taskActions"><button class="btn green" id="taskSend" ${sel.length&&ext&&ext.ok&&ext.tasks?'':'disabled'}>📨 إرسال ${sel.length} تاسك إلى الإضافة للتشغيل</button>
   <button class="btn white" id="taskXlsx" ${sel.length?'':'disabled'}>⬇ تنزيل ملف التاسكات (Excel)</button></div>
-  <p class="taskHint" id="taskMsg" role="status">تُفتح نافذة الإضافة بالقائمة جاهزة: راجعها، واختر خيار "تنظيف الرسالة" (يدمج الأسطر)، ثم ابدأ التشغيل هناك. الإضافة تطلب إذنك قبل إعادة الإرسال لملف أُرسل له سابقاً.</p></div>`;
+  <p class="taskHint" id="taskMsg" role="status">تُفتح نافذة الإضافة بالقائمة جاهزة: راجعها ثم ابدأ التشغيل هناك (أسطر الرسالة تُدمج في سطر واحد في iCare). الإضافة تطلب إذنك قبل إعادة الإرسال لملف أُرسل له سابقاً.</p></div>`;
 }
 function setupTasksTab(){
   const tabs=$('tabs'),reportBtn=tabs.querySelector('[data-p="report"]');
   const b=document.createElement('button');b.className='tab';b.dataset.p='tasksapp';b.textContent='📨 التاسكات';tabs.insertBefore(b,reportBtn);
   const p=document.createElement('div');p.className='panel';p.id='p-tasksapp';$('p-report').before(p);TAB_LABELS.tasksapp='التاسكات';
   const st=document.createElement('style');st.textContent=`.taskWrap h2{margin:0 0 4px}.taskWrap h3{margin:18px 0 8px}.taskHead{display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap}.taskHead p{margin:0;color:var(--muted,#64748b);max-width:720px}.taskExt{padding:8px 12px;border-radius:10px;font-size:13px;align-self:flex-start}.taskExt.ok{background:#dcfce7;color:#166534}.taskExt.bad{background:#fef3c7;color:#92400e}.taskRules{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px}.taskRule{border:1px solid #cbd5e1;border-radius:12px;padding:10px;display:grid;gap:6px;background:rgba(255,255,255,.6)}.taskRule.off{opacity:.55}.taskRule label{display:grid;gap:3px;font-size:13px}.taskRule .taskRuleTop{display:flex;gap:6px;align-items:center}.taskRule input:not([type]),.taskRule textarea,.taskFields input,.taskFilters input,.taskFilters select{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}.taskCount{margin-inline-start:auto;background:#0f766e;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px}.taskFields{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;font-size:13px}.taskFilters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.taskFilters select,.taskFilters input{width:auto;min-width:160px}#p-tasksapp{min-width:0;max-width:100%}.taskWrap{min-width:0;max-width:100%}.taskTable{overflow:auto;max-width:100%;max-height:70vh}.taskTable table{min-width:900px}.taskTable tr.off td{opacity:.45}.taskMsg{min-width:260px;font-size:12px}.taskActions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.taskHint{font-size:12px;color:var(--muted,#64748b)}.taskEmpty{padding:30px;text-align:center;color:var(--muted,#64748b)}body.dark .taskRule{background:rgba(15,23,42,.5);border-color:#334155}body.dark .taskRule input,body.dark .taskRule textarea,body.dark .taskFields input,body.dark .taskFilters input,body.dark .taskFilters select{background:#0f172a;color:#e2e8f0;border-color:#334155}`;document.head.appendChild(st);
-  const checkExt=async()=>{if(!window.fcIcare){taskState.ext={ok:false};return}taskState.ext=await window.fcIcare.ask('STATUS');if($('p-tasksapp').classList.contains('active'))renderTasks()};
+  const checkExt=async()=>{if(!window.fcIcare){taskState.ext={ok:false};return}taskState.ext=await window.fcIcare.ask('STATUS');if(taskState.ext.ok)syncTaskRules();if($('p-tasksapp').classList.contains('active'))renderTasks()};
   tabs.addEventListener('click',e=>{if(e.target.closest('.tab')?.dataset.p==='tasksapp'){renderTasks();checkExt()}});
   const rerender=()=>{const y=window.scrollY;renderTasks();window.scrollTo(0,y)};
   p.addEventListener('change',e=>{

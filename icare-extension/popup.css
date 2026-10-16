@@ -606,3 +606,39 @@ body.drag-over .imp-drop { background: #e8f4e8; border-color: #1E7E4D; }
 .staff-row .s-id { font-family: monospace; font-weight: 700; color: #1E4E4D; direction: ltr; }
 .staff-row .s-src { font-size: 9px; padding: 0 6px; border-radius: 8px; background: #e6eeea; color: #46605a; }
 .staff-row .s-src.manual { background: #1E4E4D; color: #fff; }
+
+/* ===== 📊 التحليل (FutureCare Weekly dashboard) ===== */
+#tab-dash { font-size: 12.5px; }
+.dash-src { background: #f4f8f7; border: 1px solid #d5e6e3; border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; }
+.dash-src-line { margin-bottom: 6px; line-height: 1.6; word-break: break-word; }
+.dash-muted { color: #777; }
+.dash-fetch { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.dash-fetch label { display: inline-flex; gap: 3px; align-items: center; }
+.dash-fetch input[type=month] { padding: 3px 6px; border: 1px solid #cfdcd9; border-radius: 6px; }
+.dash-msg { margin-top: 6px; color: #1E4E4D; font-weight: 600; }
+.dash-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.dash-filters select, .dash-filters input { padding: 4px 6px; border: 1px solid #cfdcd9; border-radius: 6px; font: inherit; min-width: 0; flex: 1 1 110px; }
+.dash-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+.dash-kpis div { background: #1E4E4D; color: #fff; border-radius: 8px; padding: 6px; text-align: center; }
+.dash-kpis b { display: block; font-size: 16px; color: #C9A227; }
+.dash-kpis span { font-size: 11px; }
+.dash-box { border: 1px solid #e3e3df; border-radius: 10px; padding: 6px 8px; margin-bottom: 8px; }
+.dash-box summary { cursor: pointer; font-weight: 600; color: #1E4E4D; }
+.dash-table { overflow: auto; max-height: 320px; margin-top: 6px; }
+.dash-table table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.dash-table th, .dash-table td { border-bottom: 1px solid #eee; padding: 4px; text-align: right; vertical-align: top; }
+.dash-table th { position: sticky; top: 0; background: #f4f4f1; }
+.dash-cases tr.off td { opacity: .45; }
+.dash-rule { border: 1px solid #e3e3df; border-radius: 8px; padding: 6px; margin: 6px 0; display: grid; gap: 4px; }
+.dash-rule.off { opacity: .55; }
+.dash-rule label { display: grid; gap: 2px; }
+.dash-rule .dash-rule-top { display: flex; gap: 6px; align-items: center; }
+.dash-rule input:not([type=checkbox]), .dash-rule textarea, .dash-fields input { width: 100%; padding: 4px 6px; border: 1px solid #cfdcd9; border-radius: 6px; font: inherit; }
+.dash-rule small { color: #777; }
+.dash-count { margin-right: auto; background: #1E4E4D; color: #fff; border-radius: 20px; padding: 0 7px; font-size: 11px; }
+.dash-fields { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 6px; }
+.dash-fields label { display: grid; gap: 2px; }
+.dash-hint { color: #777; font-size: 11.5px; margin: 6px 0; line-height: 1.6; }
+.dash-go { width: 100%; margin-top: 8px; }
+body.full-page .dash-kpis { grid-template-columns: repeat(6, 1fr); }
+body.full-page .dash-table { max-height: 60vh; }

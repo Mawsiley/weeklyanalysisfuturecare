@@ -5,3 +5,4 @@ node_modules
 .env.*
 backups/
 backup-*.json
+icare-extension-tests/dash-preview.html
