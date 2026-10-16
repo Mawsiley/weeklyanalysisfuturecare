@@ -54,9 +54,10 @@
       <div class="how">المصدر: <a href="${src.url}" target="_blank" rel="noopener">${esc(src.url.replace('https://',''))}</a> — ${esc(cfg.how)}</div>`;
     anchor.parentNode.insertBefore(box,anchor);
     const msg=box.querySelector('#icareMsg'),btn=box.querySelector('#icareFetch');
-    const say=(t,err)=>{msg.textContent=t;msg.className='msg'+(err?' err':'')};
+    let received='';const say=(t,err)=>{msg.textContent=t;msg.className='msg'+(err?' err':'')};
     btn.disabled=true;
     ask('STATUS').then(s=>{
+      if(received)return; // a report from the main page is already shown
       if(!s.ok){say(ERR.NO_EXTENSION+' ثبّتها من مجلد "FutureCare Weekly iCare" على سطح المكتب (chrome://extensions ← Load unpacked).',true);return}
       btn.disabled=false;
       say(s.hasToken?`✅ متصل بجلسة iCare (الإضافة ${s.version}).`:'⚠️ الإضافة جاهزة لكن لا توجد جلسة iCare — افتح iCare وسجّل الدخول.',!s.hasToken);
@@ -69,10 +70,30 @@
       btn.disabled=false;
       if(!r.ok){say((ERR[r.code]||'تعذّر الجلب: '+r.code)+(r.available?` المدن المتاحة: ${r.available.join('، ')}`:''),true);return}
       if(!r.rows.length){say(`لا توجد حالات في iCare لهذا الشهر والمدن المحددة.`,true);return}
-      try{feed(asIcareFile(r))}catch(e){say(e.message,true);return}
+      const file=asIcareFile(r);
+      try{feed(file)}catch(e){say(e.message,true);return}
       const parts=Object.entries(r.counts).map(([c,n])=>`${src.cities[c]}: ${n}`).join(' | ');
+      const summary=`${r.rows.length} مريض (${parts}) — شهر ${r.month}، جُلب ${new Date(r.fetchedAt).toLocaleTimeString('ar-SA')}`;
       say(`✅ تم جلب ${r.rows.length} مريض من iCare (${parts})${r.missing.length?` — لم توجد: ${r.missing.map(c=>src.cities[c]).join('، ')}`:''}. وقت الجلب ${new Date(r.fetchedAt).toLocaleTimeString('ar-SA')}.`);
+      share(file,summary);
     };
+    // Receive a report fetched in the main page (this page embedded as a tab) without fetching again.
+    window.__icareReceive=(file,summary)=>{try{feed(file);received=summary;btn.disabled=false;say('📥 نفس التقرير المجلوب في الصفحة الرئيسية: '+summary)}catch(e){say(e.message,true)}};
+    if(window!==window.top){
+      // after the page's own load handlers have attached to its file input
+      const pull=()=>setTimeout(()=>{try{const s=window.parent.__icareShared;if(s&&s.source===cfg.source)window.__icareReceive(s.file,s.summary)}catch{}},0);
+      document.readyState==='complete'?pull():window.addEventListener('load',pull,{once:true});
+    }
+  }
+  // Main page: keep the latest fetched report and pass it to embedded tabs that use the same source
+  // (e.g. "DR Not Done المتقدم"); tabs opened later pick it up when they load.
+  function share(file,summary){
+    if(window!==window.top)return;
+    window.__icareShared={source:cfg.source,file,summary};
+    document.querySelectorAll('iframe[src]').forEach(f=>{try{
+      const p=(new URL(f.src,location.href).pathname.split('/').pop()||'').toLowerCase(),c=PAGES[p];
+      if(c&&c.source===cfg.source&&f.contentWindow.__icareReceive)f.contentWindow.__icareReceive(file,summary);
+    }catch{}});
   }
   document.readyState==='loading'?document.addEventListener('DOMContentLoaded',mount,{once:true}):mount();
 })();

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FutureCare Weekly — iCare Reports",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "يجلب تقرير الأداء (جدة، مكة، ينبع) من iCare بجلسة المستخدم إلى تطبيق التحليل الأسبوعي FutureCare.",
   "permissions": [
     "storage"
@@ -31,7 +31,8 @@
       "js": [
         "bridge.js"
       ],
-      "run_at": "document_start"
+      "run_at": "document_start",
+      "all_frames": true
     }
   ],
   "action": {
