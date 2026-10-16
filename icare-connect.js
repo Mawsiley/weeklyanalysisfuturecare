@@ -1,5 +1,5 @@
 /* iCare connection for FutureCare pages.
-   Talks to the "FutureCare iCare Connector" Chrome extension (Desktop folder), which uses the signed-in iCare
+   Talks to the "FutureCare Weekly — iCare Reports" Chrome extension (Desktop folder "FutureCare Weekly iCare"), which uses the signed-in iCare
    session. The iCare token never reaches this page; the page only receives the requested report rows.
    Each page declares where its data comes from and how it is loaded (ICARE_SOURCES below). The fetched report
    is rebuilt as the same HTML-in-.xls file iCare exports and handed to the page's own file input, so every page
@@ -23,10 +23,10 @@
   const src=SOURCES[cfg.source];
 
   let seq=0;const waiting=new Map();
-  window.addEventListener('message',e=>{if(e.source!==window||e.origin!==location.origin)return;const m=e.data;if(!m||m.source!=='fc-connector'||!waiting.has(m.id))return;waiting.get(m.id)(m);waiting.delete(m.id)});
-  const ask=(type,extra={},ms=300000)=>new Promise(res=>{const id='q'+(++seq)+Date.now();waiting.set(id,res);window.postMessage({source:'fc-dashboard',id,type,...extra},location.origin);setTimeout(()=>{if(waiting.has(id)){waiting.delete(id);res({ok:false,code:'NO_EXTENSION'})}},type==='STATUS'?1500:ms)});
+  window.addEventListener('message',e=>{if(e.source!==window||e.origin!==location.origin)return;const m=e.data;if(!m||m.source!=='fc-weekly-ext'||!waiting.has(m.id))return;waiting.get(m.id)(m);waiting.delete(m.id)});
+  const ask=(type,extra={},ms=300000)=>new Promise(res=>{const id='q'+(++seq)+Date.now();waiting.set(id,res);window.postMessage({source:'fc-weekly',id,type,...extra},location.origin);setTimeout(()=>{if(waiting.has(id)){waiting.delete(id);res({ok:false,code:'NO_EXTENSION'})}},type==='STATUS'?1500:ms)});
 
-  const ERR={NO_EXTENSION:'إضافة FutureCare iCare Connector غير مثبتة أو غير مفعّلة على هذا المتصفح.',NO_TOKEN:'لا توجد جلسة iCare — افتح iCare وسجّل الدخول ثم أعد المحاولة.',TOKEN_EXPIRED:'انتهت جلسة iCare — افتح iCare وسجّل الدخول من جديد.',CITY_NOT_FOUND:'لم يتم العثور على المدن المطلوبة في قائمة مدن iCare.',NETWORK:'تعذّر الاتصال بـ iCare.',BAD_MONTH:'الشهر غير صحيح.',FORBIDDEN_ORIGIN:'هذه الصفحة غير مسموح لها في الإضافة — حدّث الإضافة إلى 1.2.0.',EXTENSION_ERROR:'أُعيد تحميل الإضافة — حدّث الصفحة.'};
+  const ERR={NO_EXTENSION:'إضافة FutureCare Weekly — iCare غير مثبتة أو غير مفعّلة على هذا المتصفح.',NO_TOKEN:'لا توجد جلسة iCare — افتح iCare وسجّل الدخول ثم أعد المحاولة.',TOKEN_EXPIRED:'انتهت جلسة iCare — افتح iCare وسجّل الدخول من جديد.',CITY_NOT_FOUND:'لم يتم العثور على المدن المطلوبة في قائمة مدن iCare.',NETWORK:'تعذّر الاتصال بـ iCare.',BAD_MONTH:'الشهر غير صحيح.',FORBIDDEN_ORIGIN:'هذه الصفحة غير مسموح لها في الإضافة.',EXTENSION_ERROR:'أُعيد تحميل الإضافة — حدّث الصفحة.'};
   const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const thisMonth=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`};
 
@@ -50,14 +50,14 @@
       <label>الشهر <input type="month" id="icareMonth" value="${thisMonth()}"></label>
       ${Object.entries(src.cities).map(([k,v])=>`<label><input type="checkbox" class="icareCity" value="${k}" checked> ${v}</label>`).join('')}
       <button type="button" id="icareFetch">جلب الآن</button></div>
-      <div class="msg" id="icareMsg" role="status">⏳ التحقق من إضافة iCare Connector…</div>
+      <div class="msg" id="icareMsg" role="status">⏳ التحقق من إضافة iCare…</div>
       <div class="how">المصدر: <a href="${src.url}" target="_blank" rel="noopener">${esc(src.url.replace('https://',''))}</a> — ${esc(cfg.how)}</div>`;
     anchor.parentNode.insertBefore(box,anchor);
     const msg=box.querySelector('#icareMsg'),btn=box.querySelector('#icareFetch');
     const say=(t,err)=>{msg.textContent=t;msg.className='msg'+(err?' err':'')};
     btn.disabled=true;
     ask('STATUS').then(s=>{
-      if(!s.ok){say(ERR.NO_EXTENSION+' ثبّتها من مجلد "FutureCare iCare Connector" على سطح المكتب (chrome://extensions ← Load unpacked).',true);return}
+      if(!s.ok){say(ERR.NO_EXTENSION+' ثبّتها من مجلد "FutureCare Weekly iCare" على سطح المكتب (chrome://extensions ← Load unpacked).',true);return}
       btn.disabled=false;
       say(s.hasToken?`✅ متصل بجلسة iCare (الإضافة ${s.version}).`:'⚠️ الإضافة جاهزة لكن لا توجد جلسة iCare — افتح iCare وسجّل الدخول.',!s.hasToken);
     });

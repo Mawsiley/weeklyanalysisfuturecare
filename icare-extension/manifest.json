@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "FutureCare Weekly — iCare Reports",
+  "version": "1.0.0",
+  "description": "يجلب تقرير الأداء (جدة، مكة، ينبع) من iCare بجلسة المستخدم إلى تطبيق التحليل الأسبوعي FutureCare.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://icare.com.sa/*", "https://api.fc.med.sa/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    { "matches": ["https://icare.com.sa/*"], "js": ["icare-token.js"], "run_at": "document_idle" },
+    { "matches": ["https://weeklyanalysisfuturecare.netlify.app/*", "http://localhost:5177/*"], "js": ["bridge.js"], "run_at": "document_start" }
+  ],
+  "action": { "default_popup": "popup.html", "default_title": "FutureCare Weekly — iCare Reports" }
+}

@@ -47,7 +47,7 @@ The header button **☁️ ربط المزامنة** signs in with the team pass
 
 ## iCare connection (Chrome extension)
 
-The **FutureCare iCare Connector** extension (v1.2.0+, folder on the Desktop; load it via `chrome://extensions` → Developer mode → Load unpacked) uses the signed-in iCare session to fetch reports directly. The iCare token stays inside the extension; pages only receive the requested rows.
+The **FutureCare Weekly — iCare Reports** extension (separate from the exit-list iCare Connector; source in , installed copy in the Desktop folder "FutureCare Weekly iCare"; load it via `chrome://extensions` → Developer mode → Load unpacked) uses the signed-in iCare session to fetch reports directly. The iCare token stays inside the extension; pages only receive the requested rows.
 
 | Page | Source in iCare | How the data is handled |
 |---|---|---|
