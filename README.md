@@ -44,3 +44,15 @@ Prepared by: Dr ALMAWSILEY ALSAYED
 ## Cloud sync (Firestore)
 
 The header button **☁️ ربط المزامنة** signs in with the team password and syncs app settings (duty schedule, leave, exceptions, doctor directory, staff list, CME plan) across devices through a Netlify Function and Firestore. Patient data is never uploaded. See `docs/db-schema.md`.
+
+## iCare connection (Chrome extension)
+
+The **FutureCare iCare Connector** extension (v1.2.0+, folder on the Desktop; load it via `chrome://extensions` → Developer mode → Load unpacked) uses the signed-in iCare session to fetch reports directly. The iCare token stays inside the extension; pages only receive the requested rows.
+
+| Page | Source in iCare | How the data is handled |
+|---|---|---|
+| Dashboard (`index.html`) | Performance Follow-up report (`/performance-follow-up/report`) — month + cities Jeddah, Makkah, Yanbu | Rebuilt as iCare's own `performance-report_<month>` export and passed through the normal upload path (Deactive excluded, partial cases zeroed, period from Last Visit) |
+| DR Not Done (`dr-not-done.html`) | Same performance report | Normal upload path: DR NOT DONE = DRP > 0 and DRD = 0, Deactive excluded |
+| GP Extra (`gp-extra-requests.html`) | `gp-extra-req-list` | Not connected yet — upload the file manually |
+
+The per-page mapping lives in `icare-connect.js` (`PAGES`, `SOURCES`).

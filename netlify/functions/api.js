@@ -69,6 +69,8 @@ exports.handler = async (event) => {
 
     if (!authed(event)) return res(401, { ok: false, code: 'UNAUTHORIZED' });
 
+    if (action === 'session') return res(200, { ok: true }); // site gate: token still valid
+
     if (action === 'settings.getAll') {
       const snap = await col('settings').get();
       const items = {};
