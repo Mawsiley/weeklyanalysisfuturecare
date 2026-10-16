@@ -1,4 +1,4 @@
-# FutureCare Weekly — iCare Reports (1.0.0)
+# FutureCare Weekly — iCare Reports (1.0.1)
 
 إضافة Chrome مستقلة لتطبيق التحليل الأسبوعي (weeklyanalysisfuturecare). تجلب تقرير الأداء من iCare باستخدام جلستك المسجّلة — لا تحفظ كلمة مرور؛ التوكن في ذاكرة المتصفح فقط ويُمسح عند إغلاقه، ولا يصل إلى صفحة التحليل.
 

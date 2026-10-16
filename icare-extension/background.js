@@ -34,9 +34,9 @@ async function icareGet(path){
 // Same API calls and the same columns as iCare's own "performance-report_<month>_all" export, limited
 // to the requested cities. Rows go only to the requesting FutureCare page (kept in memory there).
 const PERF_CITY_ALIASES = {
-  Jeddah: /jedd?ah|jidd?ah|جد[ةه]/i,
-  Makkah: /makk?ah|mecc?a|مك[ةه]/i,
-  Yanbu: /yanbu|ينبع/i,
+  Jeddah: /^jed$|jedd?ah|jidd?ah|جد[ةه]/i,   // iCare uses city codes (JED, MKK, YNB)
+  Makkah: /^mkk$|makk?ah|mecc?a|مك[ةه]/i,
+  Yanbu: /^ynb$|yanbu|ينبع/i,
 };
 const PERF_HEADERS = 'S/N,Status,App.N#,Approval Status,Monthly Approvals,PTID,Patient Name,Doctor Name,Ins.,Company,Group,City,NU P,NU D,RTP (NU),Short (NU),PT P,PT D,RTP (PT),Short (PT),DR P,DR D,RTP (DR),Short (DR),LAB P,LAB D,Short (LAB),IV P,IV D,Short (IV),SPE P,SPE D,Short (SPE),Dialysis P,Dialysis D,Speech P,Speech D,ABA P,ABA D,RT P,RT D,OT P,OT D,Dressing W.IV,VAC P,VAC D,VAC Rent,Vaccination P,Vaccination D,V. Call P,V. Call D,PT_Before,NU_Before,Last HARP Score,Hospital Admissions (Month),Mobility,Last Visit,NU Note,PT Note,GP Note,IV Note,Dressing Note,Dialysis Note'.split(',');
 const firstNote = v => v ? (String(v).split('||')[0] || '') : '';
