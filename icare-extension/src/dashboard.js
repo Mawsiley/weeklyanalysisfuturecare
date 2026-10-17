@@ -89,7 +89,8 @@
         ${Object.entries(CITIES).map(([k, v]) => `<label><input type="checkbox" class="dashCity" value="${k}" ${(S.cities || Object.keys(CITIES)).includes(k) ? 'checked' : ''}>${v}</label>`).join('')}
         <button class="btn-sm" id="dashFetch" ${S.busy ? 'disabled' : ''}>📥 جلب من iCare</button>
         <button class="btn-sm" id="dashPick">📂 ملف</button><input type="file" id="dashFile" accept=".xls,.xlsx,.html" hidden>
-        ${document.body.classList.contains('full-page') ? '' : '<button class="btn-sm" id="dashFull" title="فتح في صفحة كاملة">⤢</button>'}</div>
+        ${document.body.classList.contains('full-page') ? '' : '<button class="btn-sm" id="dashFull" title="فتح هذه النافذة بصفحة كاملة">⤢ صفحة كاملة</button>'}
+        <button class="btn-sm" id="dashSite" title="موقع التحليل الأسبوعي بكل التبويبات والتقارير">🌐 الداشبورد الكامل</button></div>
       ${S.msg ? `<div class="dash-msg">${esc(S.msg)}</div>` : ''}</div>`;
     if (!S.rows.length) { el.innerHTML = head; return; }
     const sm = summary(), all = cases(), vis = visible(all), sel = vis.filter(c => !S.off.has(c.x.ptid));
@@ -177,6 +178,7 @@
       const id = e.target.id;
       if (id === 'dashPick') return $d('dashFile').click();
       if (id === 'dashFull') return chrome.tabs.create({ url: chrome.runtime.getURL('popup.html?full=1&tab=dash') });
+      if (id === 'dashSite') return chrome.tabs.create({ url: 'https://weeklyanalysisfuturecare.netlify.app/' });
       if (id === 'dashAll') { visible(cases()).forEach(c => S.off.delete(c.x.ptid)); return rr(); }
       if (id === 'dashNone') { visible(cases()).forEach(c => S.off.add(c.x.ptid)); return rr(); }
       if (id === 'dashReset') { if (confirm('إرجاع القواعد والحقول إلى القيم الافتراضية؟')) { S.cfg = {}; await saveCfg(); rr(); } return; }
