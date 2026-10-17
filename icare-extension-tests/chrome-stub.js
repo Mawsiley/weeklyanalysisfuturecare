@@ -4,7 +4,7 @@
     { id: 1, name: 'تاسك', steps: [{ type: 'input', value: '{TASK_TITLE}' }, { type: 'customSelect', text: '{TASK_TYPE}' }, { type: 'customSelect', text: '{TASK_PRIORITY}' }, { type: 'customSelect', text: '{TASK_CATEGORY}' }, { type: 'customSelect', text: '{TASK_SUBCATEGORY}' }, { type: 'input', value: '{TASK_EMPLOYEE}' }, { type: 'input', value: '{TASK_MESSAGE}' }], stepDelay: 800, builtinVersion: 11, created: '2026-08-30T00:00:00Z' },
     { id: 2, name: 'حوالة', steps: new Array(7).fill({ type: 'click' }), stepDelay: 1200, userUpdated: true, created: '2026-08-30T00:00:00Z' }
   ];
-  const local = { loops, pendingSteps: [
+  const local = { popupLastTab: 'quicktask', loops, pendingSteps: [
     { type: 'navigate', url: 'https://icare.com.sa/patient-info?ptid=%7BPTID%7D' },
     { type: 'click', text: '-- staff --', label: 'Assign To', selector: '#staffBtn' },
     { type: 'input', value: '{TASK_EMPLOYEE}', placeholder: 'Search name or dept…' },

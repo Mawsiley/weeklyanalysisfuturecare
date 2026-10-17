@@ -650,7 +650,9 @@ async function restoreInputs() {
   $('hvPtidInput').value = s.hvPtidDraft || '';
   parseIds('qt');
   parseIds('hv');
-  if (s.popupLastTab && s.popupLastTab !== 'record') switchToTab(s.popupLastTab);
+  // FutureCare Weekly: the window opens on the 📊 report dashboard (a running job, a recording or a list sent
+  // from the site switch to their own tab afterwards)
+  switchToTab(document.getElementById('tab-dash') ? 'dash' : (s.popupLastTab && s.popupLastTab !== 'record' ? s.popupLastTab : 'quicktask'));
 }
 
 // ============================================================

@@ -151,7 +151,7 @@
     const b = document.createElement('button'); b.className = 'tab'; b.dataset.tab = 'dash'; b.innerHTML = '<i class="icon">📊</i> التحليل';
     tabs.insertBefore(b, tabs.firstChild);
     b.addEventListener('click', () => { switchToTab('dash'); chrome.storage.local.set({ popupLastTab: 'dash' }); load(); });
-    const p = document.createElement('div'); p.className = 'tab-content'; p.id = 'tab-dash'; panelAfter.before(p);
+    const p = document.createElement('div'); p.className = 'tab-content active'; p.id = 'tab-dash'; b.classList.add('active'); panelAfter.before(p);
     const rr = () => { const y = p.scrollTop; render(); p.scrollTop = y; };
     p.addEventListener('change', async e => {
       const t = e.target, rid = t.closest('[data-rule]')?.dataset.rule;
@@ -193,8 +193,9 @@
       }
     });
     chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && (ch.weeklyReport || ch.weeklyTaskRules)) { if ($d('tab-dash').classList.contains('active')) load(); } });
-    if (new URLSearchParams(location.search).get('tab') === 'dash') { switchToTab('dash'); load(); }
-    else chrome.storage.local.get('popupLastTab').then(({ popupLastTab }) => { if (popupLastTab === 'dash') { switchToTab('dash'); load(); } });
+    const ver = ('extVersion'); if (ver) ver.textContent = 'v' + ((chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '');
+    load(); // always ready: it is the window's home tab
   }
-  document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', setup) : setup();
+  // loaded at the end of <body>: set up now, before popup.js picks the opening tab
+  document.querySelector('.tabs') ? setup() : document.addEventListener('DOMContentLoaded', setup);
 })();
