@@ -962,5 +962,96 @@ window.addEventListener('storage',e=>{if(e.key===REPORT_SCOPE_KEY){try{const c=J
 {const st=document.createElement('style');st.textContent='#scopeCard summary{cursor:pointer}#scopeCard tr.scopeOut td{opacity:.55}#scopeCard .hint{margin:6px 0;color:var(--muted,#64748b);font-size:13px}#scopeCard select,#scopeCard input[type=number],#scopeCard input:not([type]){padding:4px 8px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}body.dark #scopeCard select,body.dark #scopeCard input{background:#0f172a;color:#e2e8f0;border-color:#334155}';document.head.appendChild(st)}
 const renderBeforeScopeUI=render;render=function(){const out=renderBeforeScopeUI.apply(this,arguments);renderScopeCard();return out};
 
+/* 🔔 Notification box (hideable): who is on duty right now, and for every doctor the cases visited yesterday and the
+   visits still remaining. "Visited yesterday" = the doctor's patients whose Last Visit is yesterday and who have at
+   least one DR visit done (Last Visit is the report's last recorded visit of the patient). Remaining = DR Plan − DR Done
+   (partial cases already zeroed, like everywhere else). The current shift is also marked in the duty schedule table.
+   State (hidden for today / minimised) is saved in futurecare-notify-v1. */
+const NOTIFY_KEY='futurecare-notify-v1';
+let notifyCfg=(()=>{try{return JSON.parse(localStorage.getItem(NOTIFY_KEY)||'{}')||{}}catch{return{}}})();
+const saveNotify=()=>{try{localStorage.setItem(NOTIFY_KEY,JSON.stringify(notifyCfg))}catch{}};
+const ymdLocal=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const addDays=(d,n)=>{const x=new Date(d.getTime());x.setDate(x.getDate()+n);return x};
+/* who is on duty at `now`: 08–12 (on-call + New), 12–20 (specialist), 20–08 (night; after midnight it is the previous day's night shift) */
+function dutyNowInfo(now=new Date()){
+  const h=now.getHours()+now.getMinutes()/60,today=ymdLocal(now),yd=ymdLocal(addDays(now,-1)),tm=ymdLocal(addDays(now,1));
+  const row=d=>{try{return dutyFor(d)||null}catch{return null}};
+  const t=row(today),y=row(yd),n=row(tm),tv=t&&t.v4,yv=y&&y.v4,nv=n&&n.v4,out={today,field:'',date:today,shifts:[],next:null};
+  const conflict=(v,k)=>!!(v&&v.conflicts&&v.conflicts.some(c=>c.field===k));
+  const add=(label,doctor,key,v)=>out.shifts.push({label,doctor:doctor||'—',key,leave:conflict(v,key)});
+  if(h>=8&&h<20){
+    if(tv){
+      if(tv.fri){out.field='morning';add('الجمعة 08:00–20:00 (Standby عند الطلب)',tv.morning,'morning',tv);add('New + Cash',tv.newcash,'newcash',tv);out.next={at:'20:00',label:'المسائي/الليلي',doctor:tv.night}}
+      else if(h<12){out.field='morning';add('08:00–12:00 أون كول + New',tv.morning,'morning',tv);add('New + Cash + المحوّل من الإشراف',tv.newcash,'newcash',tv);out.next={at:'12:00',label:'12:00–20:00 أون كول',doctor:tv.specialist}}
+      else{out.field='specialist';add('12:00–20:00 أون كول (طبيب الحالة ← الاختصاصي)',tv.specialist,'specialist',tv);add('New + Cash + المحوّل من الإشراف',tv.newcash,'newcash',tv);out.next={at:'20:00',label:'المسائي/الليلي',doctor:tv.night}}
+    }else if(t)add('نهار 08:00–20:00',t.day,'',null);
+  }else{
+    const night=h>=20,v=night?tv:yv,r=night?t:y;out.date=night?today:yd;out.field='night';
+    if(v)add('20:00–08:00 المسائي / الليلي',v.night,'night',v);else if(r)add('20:00–08:00 المسائي / الليلي',r.night,'',null);
+    const nx=night?nv:tv;if(nx)out.next=nx.fri?{at:'08:00',label:'الجمعة Standby',doctor:nx.morning}:{at:'08:00',label:'08:00–12:00 أون كول + New',doctor:nx.morning};
+  }
+  return out;
+}
+/* yesterday: per doctor visited cases + remaining visits (from the loaded report) */
+function notifyYesterday(){
+  if(!rows||!rows.length)return null;
+  const yd=ymdLocal(addDays(new Date(),-1)),per=new Map;let latest=null;
+  rows.forEach(x=>{
+    const o=per.get(x.doctor)||{doctor:x.doctor,visited:0,plan:0,done:0,remain:0};
+    const d=parseVisitDate(x.lastVisit);if(d&&(!latest||d>latest))latest=d;
+    if(d&&ymdLocal(d)===yd&&x.drD>0)o.visited++;
+    o.plan+=x.drP;o.done+=x.drD;o.remain+=Math.max(0,x.drP-x.drD);per.set(x.doctor,o);
+  });
+  const list=[...per.values()].filter(o=>o.plan>0||o.visited>0).sort((a,b)=>b.remain-a.remain||b.visited-a.visited);
+  return{date:yd,list,latest:latest?ymdLocal(latest):'',tot:{visited:sum(list,o=>o.visited),remain:sum(list,o=>o.remain),plan:sum(list,o=>o.plan),done:sum(list,o=>o.done)}};
+}
+function renderNotify(){
+  let box=$('notifyBox');
+  if(!box){box=document.createElement('div');box.id='notifyBox';box.setAttribute('role','status');document.body.appendChild(box)}
+  const today=ymdLocal(new Date());
+  if(notifyCfg.hiddenDate===today){box.style.display='none';return}
+  box.style.display='';box.classList.toggle('min',!!notifyCfg.collapsed);
+  const duty=dutyNowInfo(),yy=notifyYesterday(),tm=new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});
+  const dutyHtml=duty.shifts.length?duty.shifts.map(s=>`<div class="nfRow${s.leave?' bad':''}"><span>${esc(s.label)}</span><b>${esc(s.doctor)}</b>${s.leave?'<em>⚠ في إجازة — يحتاج بديل</em>':''}</div>`).join('')+(duty.next?`<div class="nfNext">التالي ${esc(duty.next.at)} — ${esc(duty.next.label)}: <b>${esc(duty.next.doctor||'—')}</b></div>`:''):'<div class="nfMuted">لا يوجد تعيين مناوبة لهذا الوقت في الجدول.</div>';
+  const first=duty.shifts[0],head=first?`المناوب الآن: ${first.doctor}`:'إشعارات اليوم';
+  let yHtml;
+  if(!yy)yHtml='<div class="nfMuted">حمّل تقرير الأداء (أو اجلبه من iCare) لعرض زيارات أمس والمتبقي لكل طبيب.</div>';
+  else{
+    const stale=yy.latest&&yy.latest<yy.date?`<div class="nfWarn">⚠ آخر زيارة مسجلة في الملف ${esc(yy.latest)} — قد لا يكون التقرير محدّثاً لأمس.</div>`:'';
+    yHtml=`${stale}<div class="nfTable"><table><thead><tr><th>الطبيب</th><th title="حالاته التي آخر زيارة مسجلة لها أمس ولها زيارة طبيب منفذة">زار أمس</th><th title="DR Plan − DR Done">المتبقي</th></tr></thead><tbody>${yy.list.map(o=>`<tr><td>${esc(o.doctor)}</td><td>${o.visited}</td><td>${o.remain?`<b class="nfRem">${o.remain}</b>`:'0'}</td></tr>`).join('')}<tr class="nfTot"><td>الإجمالي</td><td>${yy.tot.visited}</td><td>${yy.tot.remain}</td></tr></tbody></table></div>`;
+  }
+  box.innerHTML=`<div class="nfHead"><b title="${esc(head)}">🔔 ${esc(head)}</b><span class="nfBtns"><button type="button" data-nf="min" title="${notifyCfg.collapsed?'توسيع':'تصغير'}">${notifyCfg.collapsed?'▢':'—'}</button><button type="button" data-nf="hide" title="إخفاء حتى الغد (زر 🔔 في الأعلى يُعيده)">✕</button></span></div>
+  <div class="nfBody"><div class="nfSec"><h4>🩺 المناوبون الآن <small>${esc(tm)}</small></h4>${dutyHtml}</div>
+  <div class="nfSec"><h4>📈 أمس ${esc(yy?yy.date:ymdLocal(addDays(new Date(),-1)))} — زيارات كل طبيب والمتبقي</h4>${yHtml}</div></div>`;
+}
+function setupNotify(){
+  const st=document.createElement('style');st.textContent=`#notifyBox{position:fixed;left:14px;bottom:14px;z-index:9000;width:min(390px,calc(100vw - 28px));max-height:72vh;display:flex;flex-direction:column;background:var(--card,#fff);color:var(--ink,#0f172a);border:1px solid var(--line,#cbd5e1);border-right:6px solid #0f766e;border-radius:16px;box-shadow:0 12px 34px rgba(15,23,42,.28);direction:rtl;font-size:13px;overflow:hidden}
+#notifyBox .nfHead{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 12px;background:linear-gradient(135deg,#0f766e,#14532d);color:#fff}#notifyBox .nfHead b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#notifyBox .nfBtns{display:flex;gap:4px}#notifyBox .nfBtns button{background:rgba(255,255,255,.18);color:#fff;border:0;border-radius:8px;width:28px;height:26px;cursor:pointer;font-size:14px}#notifyBox .nfBtns button:hover{background:rgba(255,255,255,.32)}
+#notifyBox .nfBody{overflow:auto;padding:8px 12px 12px}#notifyBox.min .nfBody{display:none}#notifyBox h4{margin:8px 0 6px;font-size:13px}#notifyBox h4 small{color:var(--muted,#64748b);font-weight:400}.nfRow{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:5px 8px;margin-bottom:4px;border-radius:10px;background:rgba(15,118,110,.09)}.nfRow span{color:var(--muted,#64748b);font-size:12px}.nfRow.bad{background:rgba(220,38,38,.12)}.nfRow em{grid-column:1/-1;color:#dc2626;font-style:normal;font-size:12px}.nfNext,.nfMuted{color:var(--muted,#64748b);font-size:12px;margin:4px 2px}.nfWarn{background:rgba(217,119,6,.14);color:#92400e;border-radius:8px;padding:5px 8px;margin-bottom:6px;font-size:12px}
+#notifyBox .nfTable{max-height:260px;overflow:auto}#notifyBox table{width:100%;border-collapse:collapse}#notifyBox th,#notifyBox td{padding:4px 6px;text-align:right;border-bottom:1px solid var(--line,#e2e8f0);font-size:12px}#notifyBox th{position:sticky;top:0;background:var(--card,#fff)}.nfRem{color:#dc2626}.nfTot td{font-weight:800;background:rgba(15,118,110,.08)}body.dark #notifyBox{background:#0f172a;color:#e2e8f0}body.dark #notifyBox th{background:#0f172a}
+.dv4NowBanner{margin:0 0 10px;padding:10px 14px;border-radius:14px;background:linear-gradient(135deg,#0f766e,#14532d);color:#fff;display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-weight:800}.dv4NowBanner span{background:rgba(255,255,255,.18);border-radius:999px;padding:3px 10px;font-size:12px}.dv4NowBanner .bad{background:#dc2626}.dv4Table tr.dv4Today td{box-shadow:inset 0 2px 0 #0f766e,inset 0 -2px 0 #0f766e}.dv4Table td:has(.dv4NowShift){background:rgba(15,118,110,.22)}.dv4NowShift{outline:3px solid #0f766e;outline-offset:-2px;font-weight:900}`;
+  document.head.appendChild(st);
+  const bell=document.createElement('button');bell.className='btn ghost';bell.id='notifyBell';bell.title='إشعارات: المناوب الآن وزيارات أمس';bell.textContent='🔔';
+  document.querySelector('header .actions').prepend(bell);
+  bell.onclick=()=>{const t=ymdLocal(new Date());if(notifyCfg.hiddenDate===t){notifyCfg.hiddenDate='';notifyCfg.collapsed=false}else notifyCfg.collapsed=!notifyCfg.collapsed;saveNotify();renderNotify()};
+  document.addEventListener('click',e=>{const b=e.target.closest('#notifyBox [data-nf]');if(!b)return;if(b.dataset.nf==='hide')notifyCfg.hiddenDate=ymdLocal(new Date());else notifyCfg.collapsed=!notifyCfg.collapsed;saveNotify();renderNotify()});
+  window.addEventListener('storage',e=>{if(e.key===NOTIFY_KEY){try{notifyCfg=JSON.parse(e.newValue||'{}')||{}}catch{}renderNotify()}});
+  setInterval(()=>{renderNotify();markNowDuty()},60000);
+  renderNotify();
+}
+/* current shift in the duty schedule table + banner */
+function markNowDuty(){
+  const box=$('scheduleContent');if(!box)return;
+  box.querySelectorAll('.dv4NowBanner').forEach(x=>x.remove());box.querySelectorAll('.dv4Today').forEach(x=>x.classList.remove('dv4Today'));box.querySelectorAll('.dv4NowShift').forEach(x=>x.classList.remove('dv4NowShift'));
+  const title=box.querySelector('.dv4NowTitle');if(!title)return;
+  const d=dutyNowInfo();if(!d.shifts.length)return;
+  title.insertAdjacentHTML('beforebegin',`<div class="dv4NowBanner">🩺 المناوب الآن (${esc(new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}))}): ${d.shifts.map(s=>`<span class="${s.leave?'bad':''}">${esc(s.label)}: ${esc(s.doctor)}${s.leave?' ⚠ إجازة':''}</span>`).join('')}</div>`);
+  const tr=box.querySelector(`.dv4Table input[data-dv4-date="${d.date}"]`)?.closest('tr');
+  if(tr){tr.classList.add('dv4Today');if(d.field)tr.querySelector(`input[data-dv4-field="${d.field}"]`)?.classList.add('dv4NowShift');if(d.shifts.some(s=>s.key==='newcash'))tr.querySelector('input[data-dv4-field="newcash"]')?.classList.add('dv4NowShift')}
+}
+const renderScheduleBeforeNow=renderSchedule;renderSchedule=function(){const o=renderScheduleBeforeNow.apply(this,arguments);markNowDuty();renderNotify();return o};
+const renderBeforeNotify=render;render=function(){const out=renderBeforeNotify.apply(this,arguments);renderNotify();return out};
+setupNotify();markNowDuty();
+
 })();
 </script></body></html>

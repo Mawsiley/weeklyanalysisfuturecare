@@ -8,8 +8,10 @@ const body = w.slice(w.indexOf('const PERF_CITY_ALIASES'), w.indexOf('async func
 const rb = w.slice(w.indexOf('function reportB64'), w.indexOf('// Task rules: the newer copy wins'));
 const btoa = s => Buffer.from(s, 'latin1').toString('base64');
 const { PERF_HEADERS, perfRow, reportB64 } = new Function('btoa', body + rb + 'return { PERF_HEADERS, perfRow, reportB64 };')(btoa);
+const ymd = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+const YEST = ymd(new Date(Date.now() - 86400000)), __LV = id => (id % 2 ? YEST : '2026-10-01');
 const mk = (id, doctor, city, p, d, gp, st) => ({ patient_id: id, patient_name: 'Test ' + id, doctor_name: doctor, city, patient_status: st || 'Active',
-  plan: { dr: p }, done: { Dr: d }, notes: { gp }, last_visit: '2026-10-05' });
+  plan: { dr: p }, done: { Dr: d }, notes: { gp }, last_visit: __LV(id) });
 const raw = [
   mk(91001, 'Dr Test Alpha', 'JED', 2, 0, 'Acute'), mk(91002, 'Dr Test Alpha', 'JED', 2, 0, 'Patient refused service'),
   mk(91003, 'Dr Test Beta', 'MKK', 2, 0, 'Service rescheduled by patient'), mk(91004, 'Dr Test Beta', 'MKK', 1, 0, 'Patient was not available'),

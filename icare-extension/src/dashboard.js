@@ -31,7 +31,7 @@
   const num = v => { const n = Number(String(v ?? '').replace(/[^\d.-]/g, '')); return Number.isFinite(n) ? n : 0; };
   const txt = v => String(v ?? '').replace(/\s+/g, ' ').trim();
   const pct = (a, b) => b ? (a / b * 100).toFixed(1) + '%' : '—';
-  const S = { report: null, rows: [], cfg: {}, cfgAt: 0, reason: '', doctor: '', city: '', q: '', off: new Set(), busy: false, msg: '', sent: {}, showSent: false, daily: {}, autoFetch: true, hasToken: null, resume: null, run: null };
+  const S = { report: null, rows: [], cfg: {}, cfgAt: 0, reason: '', doctor: '', city: '', q: '', off: new Set(), busy: false, msg: '', sent: {}, showSent: false, daily: {}, autoFetch: true, hasToken: null, resume: null, run: null, notify: {} };
   // Custom rules ("filter + message"): checked before the default GP Note rules; first match wins.
   const STATUS = {
     notdone: ['Not Done (DR P > 0 و DR D = 0)', x => x.p > 0 && x.d === 0],
@@ -62,17 +62,25 @@
   const fallback = () => txt(S.cfg.fallback) || '632';
   async function saveCfg() { S.cfgAt = Date.now(); await chrome.storage.local.set({ weeklyTaskRules: { cfg: S.cfg, at: S.cfgAt } }); }
 
+  // Last Visit → 'YYYY-MM-DD' (accepts 2026-10-05, 05/10/2026, 05-10-2026 or an Excel serial; '#NA' → '')
+  function parseLV(v) {
+    const t = txt(v); if (!t || /^#?n\/?a$/i.test(t)) return '';
+    let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if (m) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+    m = t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/); if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+    if (/^\d{5}(\.\d+)?$/.test(t)) { const d = new Date(Date.UTC(1899, 11, 30) + Number(t) * 86400000); return d.toISOString().slice(0, 10); }
+    return '';
+  }
   function parseReport(rep) {
     const bin = atob(rep.b64), bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const wb = TaskImport.readWorkbookRows(bytes, XLSX), t = TaskImport.buildTable(wb.rows, wb.hidden, wb.misaligned);
     const H = t.headers.map(h => txt(h).toLowerCase()), col = (...names) => H.findIndex(h => names.includes(h));
     const c = { ptid: col('ptid', 'mrn', 'patient id'), doctor: col('doctor name', 'doctor', 'case doctor'), city: col('city'), status: col('status', 'patient status'),
-      p: col('dr p', 'dr plan'), d: col('dr d', 'dr done'), note: col('gp note') };
+      p: col('dr p', 'dr plan'), d: col('dr d', 'dr done'), note: col('gp note'), lv: col('last visit') };
     if (c.ptid < 0 || c.p < 0 || c.d < 0) throw new Error('الملف ليس تقرير أداء (يلزم PTID و DR P و DR D)');
     return t.rows.filter((_, i) => !t.hidden[i]).map(r => ({
       ptid: txt(r[c.ptid]), doctor: txt(r[c.doctor]).replace(/^#?n\/?a$/i, ''), city: txt(r[c.city]), status: txt(r[c.status]),
-      p: num(r[c.p]), d: num(r[c.d]), note: txt(r[c.note]),
+      p: num(r[c.p]), d: num(r[c.d]), note: txt(r[c.note]), lv: parseLV(c.lv >= 0 ? r[c.lv] : ''),
     })).filter(x => x.ptid);
   }
   const active = () => S.rows.filter(x => !/de-?active|inactive/i.test(x.status));
@@ -113,6 +121,33 @@
   const localDateOf = ms => { const d = new Date(ms); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
   const timeOf = ms => new Date(ms).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
   const ERR_TXT = { NO_TOKEN: 'لا توجد جلسة iCare', TOKEN_EXPIRED: 'انتهت جلسة iCare', CITY_NOT_FOUND: 'لم توجد المدن في iCare', EMPTY: 'لا توجد حالات في التقرير', NETWORK: 'تعذّر الاتصال بـ iCare' };
+  // Yesterday per doctor: cases visited + remaining visits. Visited = increase of DR Done since yesterday's daily copy when
+  // that copy exists (exact), otherwise patients whose Last Visit is yesterday with at least one DR visit done.
+  function yesterdayData() {
+    if (!S.rows.length) return null;
+    const yd = localDateOf(Date.now() - 86400000), per = new Map(), snaps = (S.daily && S.daily.snapshots) || [];
+    const cur = snaps[snaps.length - 1], prev = snaps.find(x => x.date === yd), diff = !!(cur && prev && cur.date !== prev.date && cur.date > prev.date);
+    active().forEach(x => {
+      const k = x.doctor || '—', o = per.get(k) || { doctor: k, visited: 0, plan: 0, done: 0, remain: 0 };
+      if (!diff && x.lv === yd && x.d > 0) o.visited++;
+      const eff = x.d > 0 && x.p > x.d ? x.d : x.p;
+      o.plan += eff; o.done += x.d; o.remain += Math.max(0, eff - x.d); per.set(k, o);
+    });
+    if (diff) per.forEach((o, k) => { const a = (cur.byDoc[k] || {}).done || 0, b = (prev.byDoc[k] || {}).done || 0; o.visited = Math.max(0, a - b); });
+    const list = [...per.values()].filter(o => o.plan > 0 || o.visited > 0).sort((a, b) => b.remain - a.remain || b.visited - a.visited);
+    const latest = active().map(x => x.lv).filter(Boolean).sort().pop() || '';
+    return { date: yd, diff, from: diff ? prev.date : '', list, latest, tot: { visited: list.reduce((n, o) => n + o.visited, 0), remain: list.reduce((n, o) => n + o.remain, 0) } };
+  }
+  function notifyHtml() {
+    const t = localDate(); if (S.notify.hiddenDate === t || !S.rows.length) return '';
+    const y = yesterdayData(); if (!y) return '';
+    const stale = !y.diff && y.latest && y.latest < y.date ? '<div class="dash-alert warn"><span>⚠ آخر زيارة مسجلة في الملف ' + esc(y.latest) + ' — قد لا يكون التقرير محدّثاً لأمس.</span></div>' : '';
+    return '<div class="dash-notify ' + (S.notify.collapsed ? 'min' : '') + '"><div class="dash-notify-head"><b>🔔 أمس ' + esc(y.date) + ' — زيارات الأطباء والمتبقي</b><span><button class="btn-sm" data-nf="min" title="تصغير/توسيع">' + (S.notify.collapsed ? '▢' : '—') + '</button><button class="btn-sm" data-nf="hide" title="إخفاء حتى الغد (زر 🔔 يعيده)">✕</button></span></div>' +
+      '<div class="dash-notify-body">' + stale + '<div class="dash-table"><table><thead><tr><th>الطبيب</th><th title="' + esc(y.diff ? 'زيادة DR Done منذ نسخة ' + y.from : 'حالات آخر زيارة لها أمس ولها زيارة منفذة') + '">زار أمس</th><th title="DR Plan − DR Done">المتبقي</th></tr></thead><tbody>' +
+      y.list.map(o => '<tr><td>' + esc(o.doctor) + '</td><td>' + o.visited + '</td><td>' + (o.remain ? '<b class="dash-rem">' + o.remain + '</b>' : '0') + '</td></tr>').join('') +
+      '<tr class="dash-tot"><td>الإجمالي</td><td>' + y.tot.visited + '</td><td>' + y.tot.remain + '</td></tr></tbody></table></div>' +
+      '<div class="dash-muted" style="font-size:11px">' + (y.diff ? 'الطريقة: الفرق في DR Done منذ نسخة ' + esc(y.from) + ' (دقيقة).' : 'الطريقة: عمود Last Visit (آخر زيارة مسجلة للمريض) مع زيارة طبيب منفذة.') + '</div></div></div>';
+  }
   // Important alerts for the dashboard: freshness of the local copy, session, Not Done changes, pending work.
   function alerts() {
     const A = [], today = localDate(), rep = S.report, dl = S.daily || {}, how = rep && (rep.how === 'auto' ? 'جلب تلقائي' : rep.how === 'manual' ? 'جلب يدوي' : rep.source === 'site' ? 'من موقع التحليل' : 'من ملف');
@@ -166,6 +201,7 @@
         <button class="btn-sm" id="dashFetch" ${S.busy ? 'disabled' : ''}>📥 جلب من iCare</button>
         <button class="btn-sm" id="dashPick">📂 ملف</button><input type="file" id="dashFile" accept=".xls,.xlsx,.html" hidden>
         ${document.body.classList.contains('full-page') ? '' : '<button class="btn-sm" id="dashFull" title="فتح هذه النافذة بصفحة كاملة">⤢ صفحة كاملة</button>'}
+        <button class="btn-sm" id="dashBell" title="إشعار زيارات أمس والمتبقي">🔔</button>
         <button class="btn-sm" id="dashSite" title="موقع التحليل الأسبوعي بكل التبويبات والتقارير">🌐 الداشبورد الكامل</button></div>
       <label class="dash-auto"><input type="checkbox" id="dashAuto" ${S.autoFetch ? 'checked' : ''}> 🔄 جلب تلقائي مرة يومياً (ونسخة محلية)</label>
       ${S.msg ? `<div class="dash-msg">${esc(S.msg)}</div>` : ''}</div>`;
@@ -173,7 +209,7 @@
     const sm = summary(), all = cases(), vis = visible(all), sel = vis.filter(c => !c.sent && !S.off.has(c.x.ptid)), sentN = all.filter(c => c.sent).length;
     const counts = {}; all.forEach(c => { counts[c.rule.id] = (counts[c.rule.id] || 0) + 1; });
     const cities = [...new Set(active().map(x => x.city).filter(Boolean))].sort(), docs = [...new Set(active().map(x => x.doctor).filter(Boolean))].sort();
-    el.innerHTML = head + alertsHtml() + `
+    el.innerHTML = head + notifyHtml() + alertsHtml() + `
       <div class="dash-filters"><select id="dashCityF"><option value="">كل المدن</option>${cities.map(c => `<option ${S.city === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
         <select id="dashDoctorF"><option value="">كل الأطباء</option>${docs.map(d => `<option ${S.doctor === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
       <div class="dash-kpis">
@@ -216,7 +252,8 @@
   }
 
   async function load() {
-    const { weeklyReport, weeklyTaskRules, sentHistory, weeklyDaily, weeklyAutoFetch, resumeQueue } = await chrome.storage.local.get(['weeklyReport', 'weeklyTaskRules', 'sentHistory', 'weeklyDaily', 'weeklyAutoFetch', 'resumeQueue']);
+    const { weeklyReport, weeklyTaskRules, sentHistory, weeklyDaily, weeklyAutoFetch, resumeQueue, weeklyNotify } = await chrome.storage.local.get(['weeklyReport', 'weeklyTaskRules', 'sentHistory', 'weeklyDaily', 'weeklyAutoFetch', 'resumeQueue', 'weeklyNotify']);
+    S.notify = weeklyNotify || {};
     S.sent = sentHistory || {}; S.daily = weeklyDaily || {}; S.autoFetch = weeklyAutoFetch !== false; S.resume = resumeQueue || null;
     const [stt, rs] = await Promise.all([chrome.runtime.sendMessage({ type: 'FCW_STATUS' }).catch(() => null), chrome.runtime.sendMessage({ action: 'BG_GET_RUN_STATE' }).catch(() => null)]);
     S.hasToken = stt && typeof stt.hasToken === 'boolean' ? stt.hasToken : null; S.run = rs && rs.state && rs.state.running ? rs.state : null;
@@ -275,6 +312,9 @@
     p.addEventListener('toggle', e => { if (e.target.id === 'dashRulesBox') S.rulesOpen = e.target.open; }, true);
     p.addEventListener('click', async e => {
       const id = e.target.id;
+      const nf = e.target.closest('[data-nf]')?.dataset.nf;
+      if (nf) { if (nf === 'hide') S.notify.hiddenDate = localDate(); else S.notify.collapsed = !S.notify.collapsed; await chrome.storage.local.set({ weeklyNotify: S.notify }); return rr(); }
+      if (id === 'dashBell') { if (S.notify.hiddenDate === localDate()) { S.notify.hiddenDate = ''; S.notify.collapsed = false; } else S.notify.collapsed = !S.notify.collapsed; await chrome.storage.local.set({ weeklyNotify: S.notify }); return rr(); }
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (act === 'fetch') return $d('dashFetch')?.click();
       if (act === 'icare') return chrome.tabs.create({ url: 'https://icare.com.sa/performance-follow-up/report' });
@@ -307,7 +347,7 @@
         return load();
       }
     });
-    chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && (ch.weeklyReport || ch.weeklyTaskRules || ch.sentHistory || ch.weeklyDaily || ch.weeklyAutoFetch || ch.resumeQueue)) { if ($d('tab-dash').classList.contains('active')) load(); } });
+    chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && (ch.weeklyReport || ch.weeklyTaskRules || ch.sentHistory || ch.weeklyDaily || ch.weeklyAutoFetch || ch.resumeQueue || ch.weeklyNotify)) { if ($d('tab-dash').classList.contains('active')) load(); } });
     const ver = ('extVersion'); if (ver) ver.textContent = 'v' + ((chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '');
     load(); // always ready: it is the window's home tab
   }
