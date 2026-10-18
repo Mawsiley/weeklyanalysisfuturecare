@@ -24,6 +24,8 @@
         let bin = '';
         for(let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
         reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_SYNC_REPORT', name: String(m.name || ''), b64: btoa(bin) }));
+      } else if(m.type === 'SENT'){
+        reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_SENT', ptids: (Array.isArray(m.ptids) ? m.ptids : []).slice(0, 5000).map(x => String(x).slice(0, 20)), month: String(m.month || '') }));
       } else if(m.type === 'SYNC_RULES'){
         reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_SYNC_RULES', cfg: m.cfg && typeof m.cfg === 'object' ? m.cfg : null, at: Number(m.at) || 0 }));
       } else if(m.type === 'FETCH_PERFORMANCE'){

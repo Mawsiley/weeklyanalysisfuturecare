@@ -31,7 +31,32 @@
   const num = v => { const n = Number(String(v ?? '').replace(/[^\d.-]/g, '')); return Number.isFinite(n) ? n : 0; };
   const txt = v => String(v ?? '').replace(/\s+/g, ' ').trim();
   const pct = (a, b) => b ? (a / b * 100).toFixed(1) + '%' : '—';
-  const S = { report: null, rows: [], cfg: {}, cfgAt: 0, reason: '', doctor: '', city: '', q: '', off: new Set(), busy: false, msg: '' };
+  const S = { report: null, rows: [], cfg: {}, cfgAt: 0, reason: '', doctor: '', city: '', q: '', off: new Set(), busy: false, msg: '', sent: {}, showSent: false };
+  // Custom rules ("filter + message"): checked before the default GP Note rules; first match wins.
+  const STATUS = {
+    notdone: ['Not Done (DR P > 0 و DR D = 0)', x => x.p > 0 && x.d === 0],
+    partial: ['زيارة إضافية / جزئي (DR P > DR D ≥ 1)', x => x.d >= 1 && x.p - x.d >= 1],
+    planned: ['له خطة طبيب (DR P > 0)', x => x.p > 0],
+    all: ['كل الحالات', () => true],
+  };
+  const NOTE_MODES = { any: 'أي GP Note', empty: 'بدون GP Note', contains: 'GP Note يحتوي' };
+  const customs = () => (Array.isArray(S.cfg.custom) ? S.cfg.custom : []);
+  function customTest(c, x) {
+    if (!(STATUS[c.status] || STATUS.notdone)[1](x)) return false;
+    if (c.doctor && x.doctor !== c.doctor) return false;
+    if (c.city && x.city !== c.city) return false;
+    const n = (x.note || '').toLowerCase();
+    if (c.noteMode === 'empty') return !n;
+    if (c.noteMode === 'contains') { const parts = String(c.note || '').toLowerCase().split('|').map(s => s.trim()).filter(Boolean); return !parts.length || parts.some(p => n.includes(p)); }
+    return true;
+  }
+  // One task per case: a PTID with a task recorded (sent / unconfirmed / maybe created) since the report month is not offered again.
+  const reportMonth = () => (S.report && (S.report.month || (String(S.report.name || '').match(/(\d{4}-\d{2})/) || [])[1])) || new Date().toISOString().slice(0, 7);
+  function sentEntry(ptid) {
+    const m = reportMonth();
+    const list = (S.sent[ptid] || []).filter(e => (!e.loop || e.loop === 'تاسك') && String(e.at || '').slice(0, 7) >= m);
+    return list.length ? list[list.length - 1] : null;
+  }
 
   const rule = id => ({ ...RULES.find(r => r.id === id), ...((S.cfg.rules || {})[id] || {}) });
   const fallback = () => txt(S.cfg.fallback) || '632';
@@ -56,20 +81,24 @@
   function cases() {
     const out = [];
     scoped().forEach(x => {
+      const fillC = s => String(s || '').replace(/{DR_P}/g, x.p).replace(/{DR_D}/g, x.d).replace(/{NOTE}/g, x.note || '—')
+        .replace(/{DOCTOR}/g, x.doctor || '—').replace(/{PTID}/g, x.ptid);
+      const cr = customs().find(c => c.on !== false && customTest(c, x));
+      if (cr) { out.push({ x, rule: { id: 'c:' + cr.id, label: '★ ' + (cr.name || 'قاعدة مخصصة') }, employee: txt(cr.employee) || x.doctor || fallback(), title: fillC(cr.title).slice(0, 35), message: fillC(cr.message), sent: sentEntry(x.ptid) }); return; }
       for (const base of RULES) {
         const r = rule(base.id);
         if (!r.on || !base.test(x)) continue;
         const fill = s => String(s || '').replace(/\{DR_P\}/g, x.p).replace(/\{DR_D\}/g, x.d).replace(/\{NOTE\}/g, x.note || '—')
           .replace(/\{DOCTOR\}/g, x.doctor || '—').replace(/\{PTID\}/g, x.ptid);
-        out.push({ x, rule: base, employee: txt(r.employee) || x.doctor || fallback(), title: fill(r.title).slice(0, 35), message: fill(r.message) });
+        out.push({ x, rule: base, employee: txt(r.employee) || x.doctor || fallback(), title: fill(r.title).slice(0, 35), message: fill(r.message), sent: sentEntry(x.ptid) });
         break;
       }
     });
     return out;
   }
-  const visible = all => all.filter(c => (!S.reason || c.rule.id === S.reason) &&
+  const visible = all => all.filter(c => (S.showSent || !c.sent) && (!S.reason || c.rule.id === S.reason) &&
     (!S.q || `${c.x.ptid} ${c.x.doctor} ${c.x.note}`.toLowerCase().includes(S.q.toLowerCase())));
-  const selected = () => visible(cases()).filter(c => !S.off.has(c.x.ptid));
+  const selected = () => visible(cases()).filter(c => !c.sent && !S.off.has(c.x.ptid));
 
   function summary() {
     const a = scoped(), plan = a.reduce((s, x) => s + (x.d > 0 && x.p > x.d ? x.d : x.p), 0), done = a.reduce((s, x) => s + x.d, 0);
@@ -80,6 +109,7 @@
       docs: [...byDoc.values()].sort((x, y) => y.n - x.n) };
   }
 
+  const sentDay = e => { try { return new Date(e.at).toLocaleDateString('ar-SA', { day: 'numeric', month: 'numeric' }); } catch (_) { return ''; } };
   function render() {
     const el = $d('tab-dash'); if (!el) return;
     const rep = S.report, thisMonth = new Date().toISOString().slice(0, 7);
@@ -93,7 +123,7 @@
         <button class="btn-sm" id="dashSite" title="موقع التحليل الأسبوعي بكل التبويبات والتقارير">🌐 الداشبورد الكامل</button></div>
       ${S.msg ? `<div class="dash-msg">${esc(S.msg)}</div>` : ''}</div>`;
     if (!S.rows.length) { el.innerHTML = head; return; }
-    const sm = summary(), all = cases(), vis = visible(all), sel = vis.filter(c => !S.off.has(c.x.ptid));
+    const sm = summary(), all = cases(), vis = visible(all), sel = vis.filter(c => !c.sent && !S.off.has(c.x.ptid)), sentN = all.filter(c => c.sent).length;
     const counts = {}; all.forEach(c => { counts[c.rule.id] = (counts[c.rule.id] || 0) + 1; });
     const cities = [...new Set(active().map(x => x.city).filter(Boolean))].sort(), docs = [...new Set(active().map(x => x.doctor).filter(Boolean))].sort();
     el.innerHTML = head + `
@@ -106,6 +136,19 @@
       <details class="dash-box"><summary>الأطباء (${sm.docs.length})</summary><div class="dash-table"><table><thead><tr><th>الطبيب</th><th>مرضى</th><th>Plan</th><th>Done</th><th>إنجاز</th><th>Not Done</th></tr></thead><tbody>
         ${sm.docs.map(o => `<tr><td>${esc(o.doctor)}</td><td>${o.n}</td><td>${o.plan}</td><td>${o.done}</td><td>${pct(o.done, o.plan)}</td><td>${o.nd}</td></tr>`).join('')}</tbody></table></div></details>
       <details class="dash-box" ${S.rulesOpen ? 'open' : ''} id="dashRulesBox"><summary>قواعد التاسكات (سبب الإرسال) — تتزامن مع موقع التحليل</summary>
+        <div class="dash-sub">★ قواعد مخصصة — فلتر + رسالة خاصة (تُطبق قبل القواعد الافتراضية)</div>
+        ${customs().map(c => `<div class="dash-rule dash-custom ${c.on === false ? 'off' : ''}" data-custom="${esc(c.id)}">
+          <label class="dash-rule-top"><input type="checkbox" data-c="on" ${c.on === false ? '' : 'checked'}><input data-c="name" value="${esc(c.name || '')}" placeholder="اسم القاعدة"><span class="dash-count">${counts['c:' + c.id] || 0}</span><button class="btn-sm" data-del-custom="${esc(c.id)}" title="حذف">🗑</button></label>
+          <div class="dash-grid2"><label>الحالة<select data-c="status">${Object.entries(STATUS).map(([k, [l]]) => `<option value="${k}" ${(c.status || 'notdone') === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+          <label>الطبيب<select data-c="doctor"><option value="">كل الأطباء</option>${docs.map(o => `<option ${c.doctor === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></label>
+          <label>المدينة<select data-c="city"><option value="">كل المدن</option>${cities.map(o => `<option ${c.city === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></label>
+          <label>GP Note<select data-c="noteMode">${Object.entries(NOTE_MODES).map(([k, l]) => `<option value="${k}" ${(c.noteMode || 'any') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+          ${c.noteMode === 'contains' ? `<label>النص (أكثر من كلمة: افصل بـ |)<input data-c="note" value="${esc(c.note || '')}" placeholder="مثال: refused|رفض"></label>` : ''}
+          <label>يُرسل إلى <input data-c="employee" value="${esc(c.employee || '')}" placeholder="فارغ = طبيب الحالة"></label>
+          <label>العنوان <input data-c="title" maxlength="35" value="${esc(c.title || '')}"></label>
+          <label>الرسالة <textarea data-c="message" rows="3">${esc(c.message || '')}</textarea></label></div>`).join('')}
+        <div class="btn-row"><button class="btn-sm" id="dashAddCustom">➕ قاعدة مخصصة</button><button class="btn-sm" id="dashAddFromFilter" title="تأخذ المدينة والطبيب من الفلتر الحالي">➕ من الفلتر الحالي</button></div>
+        <div class="dash-sub">القواعد الافتراضية (GP Note)</div>
         ${RULES.map(b => { const r = rule(b.id); return `<div class="dash-rule ${r.on ? '' : 'off'}" data-rule="${b.id}">
           <label class="dash-rule-top"><input type="checkbox" data-k="on" ${r.on ? 'checked' : ''}><b>${esc(b.label)}</b><span class="dash-count">${counts[b.id] || 0}</span></label>
           <label>يُرسل إلى <input data-k="employee" value="${esc(r.employee)}" placeholder="فارغ = طبيب الحالة"><small>${esc(b.to)}</small></label>
@@ -113,18 +156,20 @@
           <label>الرسالة <textarea data-k="message" rows="3">${esc(r.message)}</textarea></label></div>`; }).join('')}
         <div class="dash-hint">متغيرات: {DR_P} {DR_D} {NOTE} {DOCTOR} {PTID} · بلا طبيب ← <input id="dashFallback" value="${esc(fallback())}" size="5"> · <button class="btn-sm" id="dashReset">↩ افتراضي</button></div>
         <div class="dash-fields">${FIELDS.map(([k, l]) => `<label>${l}<input data-f="${k}" value="${esc((S.cfg.fields || {})[k] || '')}" placeholder="افتراضي iCare"></label>`).join('')}</div></details>
-      <div class="dash-filters"><select id="dashReason"><option value="">كل الأسباب (${all.length})</option>${RULES.filter(b => rule(b.id).on).map(b => `<option value="${b.id}" ${S.reason === b.id ? 'selected' : ''}>${esc(b.label)} (${counts[b.id] || 0})</option>`).join('')}</select>
+      <div class="dash-filters"><select id="dashReason"><option value="">كل الأسباب (${all.length})</option>${customs().filter(c => c.on !== false).map(c => `<option value="c:${esc(c.id)}" ${S.reason === 'c:' + c.id ? 'selected' : ''}>★ ${esc(c.name || 'قاعدة مخصصة')} (${counts['c:' + c.id] || 0})</option>`).join('')}${RULES.filter(b => rule(b.id).on).map(b => `<option value="${b.id}" ${S.reason === b.id ? 'selected' : ''}>${esc(b.label)} (${counts[b.id] || 0})</option>`).join('')}</select>
         <input id="dashQ" placeholder="بحث PTID / طبيب / ملاحظة" value="${esc(S.q)}">
         <button class="btn-sm" id="dashAll">الكل</button><button class="btn-sm" id="dashNone">لا شيء</button></div>
+      <div class="dash-sent">✓ أُرسل لها تاسك منذ ${esc(reportMonth())}: <b>${sentN}</b> حالة — لا تُرسل مرة أخرى · <label><input type="checkbox" id="dashShowSent" ${S.showSent ? 'checked' : ''}> إظهارها</label></div>
       <div class="dash-table dash-cases"><table><thead><tr><th></th><th>PTID</th><th>الطبيب</th><th>P/D</th><th>GP Note</th><th>يُرسل إلى</th><th>العنوان</th></tr></thead><tbody>
-        ${vis.slice(0, 1000).map(c => `<tr class="${S.off.has(c.x.ptid) ? 'off' : ''}" title="${esc(c.message)}"><td><input type="checkbox" data-p="${esc(c.x.ptid)}" ${S.off.has(c.x.ptid) ? '' : 'checked'}></td><td>${esc(c.x.ptid)}</td><td>${esc(c.x.doctor || '—')}</td><td>${c.x.p}/${c.x.d}</td><td>${esc(c.x.note || '—')}</td><td><b>${esc(c.employee)}</b></td><td>${esc(c.title)}</td></tr>`).join('') || '<tr><td colspan="7">لا توجد حالات تنطبق عليها القواعد المفعّلة.</td></tr>'}
+        ${vis.slice(0, 1000).map(c => `<tr class="${c.sent ? 'sent' : S.off.has(c.x.ptid) ? 'off' : ''}" title="${esc(c.message)}"><td>${c.sent ? `<span class="dash-sent-mark" title="${esc((c.sent.title || '') + ' → ' + (c.sent.employee || ''))}">✓ ${sentDay(c.sent)}</span>` : `<input type="checkbox" data-p="${esc(c.x.ptid)}" ${S.off.has(c.x.ptid) ? '' : 'checked'}>`}</td><td>${esc(c.x.ptid)}</td><td>${esc(c.x.doctor || '—')}</td><td>${c.x.p}/${c.x.d}</td><td>${esc(c.x.note || '—')}</td><td><b>${esc(c.employee)}</b></td><td>${esc(c.title)}</td></tr>`).join('') || '<tr><td colspan="7">لا توجد حالات تنطبق عليها القواعد المفعّلة.</td></tr>'}
       </tbody></table></div>
       <button class="btn-primary dash-go" id="dashPrepare" ${sel.length ? '' : 'disabled'}>⚡ تجهيز ${sel.length} تاسك في تبويب التاسك</button>
-      <div class="dash-hint">تُنقل القائمة إلى تبويب ⚡ تاسك (أسطر الرسالة تُدمج في سطر واحد)؛ هناك اضغط "تجربة" أو "تشغيل". الإضافة تطلب إذنك قبل إعادة الإرسال لملف أُرسل له سابقاً.</div>`;
+      <div class="dash-hint">تُنقل القائمة إلى تبويب ⚡ تاسك (أسطر الرسالة تُدمج في سطر واحد)؛ هناك اضغط "تجربة" أو "تشغيل". كل حالة يُفتح لها تاسك مرة واحدة: بعد التشغيل تُسجل في سجل الإرسال وتظهر هنا «✓ أُرسل» ولا تُعرض للإرسال مرة أخرى (لإعادة الإرسال احذفها من السجل في تبويب 📋 سجل).</div>`;
   }
 
   async function load() {
-    const { weeklyReport, weeklyTaskRules } = await chrome.storage.local.get(['weeklyReport', 'weeklyTaskRules']);
+    const { weeklyReport, weeklyTaskRules, sentHistory } = await chrome.storage.local.get(['weeklyReport', 'weeklyTaskRules', 'sentHistory']);
+    S.sent = sentHistory || {};
     S.cfg = (weeklyTaskRules && weeklyTaskRules.cfg) || {}; S.cfgAt = (weeklyTaskRules && weeklyTaskRules.at) || 0;
     if (weeklyReport && (!S.report || weeklyReport.at !== S.report.at)) {
       S.report = weeklyReport;
@@ -157,6 +202,9 @@
     p.addEventListener('change', async e => {
       const t = e.target, rid = t.closest('[data-rule]')?.dataset.rule;
       if (rid && t.dataset.k) { S.cfg.rules = S.cfg.rules || {}; S.cfg.rules[rid] = { ...(S.cfg.rules[rid] || {}), [t.dataset.k]: t.type === 'checkbox' ? t.checked : t.value }; S.rulesOpen = true; await saveCfg(); return rr(); }
+      const cid = t.closest('[data-custom]')?.dataset.custom;
+      if (cid && t.dataset.c) { const c = customs().find(x => x.id === cid); if (c) { c[t.dataset.c] = t.type === 'checkbox' ? t.checked : t.value; S.rulesOpen = true; await saveCfg(); } return rr(); }
+      if (t.id === 'dashShowSent') { S.showSent = t.checked; return rr(); }
       if (t.dataset.f) { S.cfg.fields = { ...(S.cfg.fields || {}), [t.dataset.f]: t.value.trim() }; return saveCfg(); }
       if (t.id === 'dashFallback') { S.cfg.fallback = t.value.trim(); await saveCfg(); return rr(); }
       if (t.dataset.p != null) { t.checked ? S.off.delete(t.dataset.p) : S.off.add(t.dataset.p); t.closest('tr').classList.toggle('off', !t.checked); const g = $d('dashPrepare'); g.textContent = `⚡ تجهيز ${selected().length} تاسك في تبويب التاسك`; g.disabled = !selected().length; return; }
@@ -183,6 +231,15 @@
       if (id === 'dashNone') { visible(cases()).forEach(c => S.off.add(c.x.ptid)); return rr(); }
       if (id === 'dashReset') { if (confirm('إرجاع القواعد والحقول إلى القيم الافتراضية؟')) { S.cfg = {}; await saveCfg(); rr(); } return; }
       if (id === 'dashPrepare') return prepare();
+      if (id === 'dashAddCustom' || id === 'dashAddFromFilter') {
+        const fromF = id === 'dashAddFromFilter';
+        S.cfg.custom = [...customs(), { id: Date.now().toString(36), on: true, name: fromF ? [S.doctor, S.city].filter(Boolean).join(' / ') || 'قاعدة مخصصة' : 'قاعدة مخصصة',
+          status: 'notdone', doctor: fromF ? S.doctor : '', city: fromF ? S.city : '', noteMode: 'any', note: '', employee: '', title: 'متابعة زيارة الطبيب',
+          message: 'زيارة الطبيب مخططة ({DR_P}) والمنفذ ({DR_D}). GP Note: {NOTE}. الرجاء المتابعة واتخاذ اللازم.' }];
+        S.rulesOpen = true; await saveCfg(); return rr();
+      }
+      const del = e.target.closest('[data-del-custom]');
+      if (del) { if (confirm('حذف هذه القاعدة المخصصة؟')) { S.cfg.custom = customs().filter(c => c.id !== del.dataset.delCustom); await saveCfg(); rr(); } return; }
       if (id === 'dashFetch') {
         const month = $d('dashMonth').value, cities = [...p.querySelectorAll('.dashCity:checked')].map(x => x.value);
         if (!cities.length) { S.msg = 'اختر مدينة واحدة على الأقل.'; return render(); }
@@ -194,7 +251,7 @@
         return load();
       }
     });
-    chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && (ch.weeklyReport || ch.weeklyTaskRules)) { if ($d('tab-dash').classList.contains('active')) load(); } });
+    chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && (ch.weeklyReport || ch.weeklyTaskRules || ch.sentHistory)) { if ($d('tab-dash').classList.contains('active')) load(); } });
     const ver = ('extVersion'); if (ver) ver.textContent = 'v' + ((chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '');
     load(); // always ready: it is the window's home tab
   }

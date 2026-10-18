@@ -28,6 +28,7 @@
     if (m.type === 'STATUS') reply(await toExt({ type: 'FCW_STATUS' }));
     if (m.type === 'FETCH_PERFORMANCE') reply(await toExt({ type: 'FCW_FETCH_PERFORMANCE', month: m.month, cities: m.cities }));
     if (m.type === 'SYNC_REPORT') reply(await toExt({ type: 'FCW_SYNC_REPORT', name: m.name, b64: b64(m.buffer) }));
+    if (m.type === 'SENT') reply(await toExt({ type: 'FCW_SENT', ptids: m.ptids, month: m.month }));
     if (m.type === 'SYNC_RULES') reply(await toExt({ type: 'FCW_SYNC_RULES', cfg: m.cfg, at: m.at }));
     if (m.type === 'OPEN_TASKS') reply(await toExt({ type: 'FCW_OPEN_TASKS', name: m.name, b64: b64(m.buffer) }));
   });

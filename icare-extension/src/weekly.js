@@ -110,7 +110,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if(msg && msg.type === 'FCW_STATUS'){
     if(!PAGE_ORIGINS.includes(from) && sender.id !== chrome.runtime.id) return;
-    getToken().then(t => sendResponse({ ok: true, hasToken: !!t.token, tokenAt: t.at, version: chrome.runtime.getManifest().version, tasks: true }));
+    getToken().then(t => sendResponse({ ok: true, hasToken: !!t.token, tokenAt: t.at, version: chrome.runtime.getManifest().version, tasks: true, sentApi: 1 }));
     return true;
   }
   // The weekly site hands over its current report: the task window opens with it imported, for review.
@@ -134,6 +134,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   // Sync with the weekly site: the report loaded there (fetched or uploaded) and the task rules.
+  // Read-only: which of these PTIDs already got a task (from the extension's send log). Used by the site to
+  // show "✓ sent" and keep one task per case. The site cannot create or change anything here.
+  if(msg && msg.type === 'FCW_SENT'){
+    if(!PAGE_ORIGINS.includes(from)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
+    const ptids = (Array.isArray(msg.ptids) ? msg.ptids : []).slice(0, 5000).map(x => String(x).slice(0, 20));
+    const month = /^d{4}-d{2}$/.test(String(msg.month || '')) ? String(msg.month) : '';
+    chrome.storage.local.get('sentHistory').then(({ sentHistory = {} }) => {
+      const sent = {};
+      for(const p of ptids){
+        const l = (sentHistory[p] || []).filter(e => (!e.loop || e.loop === 'تاسك') && (!month || String(e.at || '').slice(0, 7) >= month));
+        if(l.length){ const e = l[l.length - 1]; sent[p] = { at: e.at, employee: e.employee || '', title: e.title || '', state: e.state || '' }; }
+      }
+      sendResponse({ ok: true, sent });
+    });
+    return true;
+  }
   if(msg && msg.type === 'FCW_SYNC_REPORT'){
     if(!PAGE_ORIGINS.includes(from)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
     const b64 = String(msg.b64 || '');

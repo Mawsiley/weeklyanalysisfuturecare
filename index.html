@@ -787,30 +787,56 @@ const TASK_RULES_DEFAULT=[
 ];
 const TASK_FIELDS=[['type','TASK_TYPE','النوع'],['priority','TASK_PRIORITY','الأولوية'],['category','TASK_CATEGORY','الفئة'],['subcategory','TASK_SUBCATEGORY','الفئة الفرعية']];
 let taskCfg=(()=>{try{return JSON.parse(localStorage.getItem(TASK_STORE)||'{}')}catch{return{}}})();
-const taskState={reason:'',doctor:'',q:'',off:new Set(),ext:null};
+const taskState={reason:'',doctor:'',q:'',off:new Set(),ext:null,sent:{},showSent:false};
 const taskRule=id=>({...TASK_RULES_DEFAULT.find(r=>r.id===id),...((taskCfg.rules||{})[id]||{})});
 const saveTaskCfg=(fromExt)=>{if(!fromExt)taskCfg._at=Date.now();localStorage.setItem(TASK_STORE,JSON.stringify(taskCfg));if(!fromExt)syncTaskRules()};
 // rules are shared with the extension's 📊 tab: the newer copy wins
 async function syncTaskRules(){if(!window.fcIcare)return;const r=await window.fcIcare.ask('SYNC_RULES',{cfg:taskCfg,at:taskCfg._at||0},15000);if(r&&r.ok&&r.cfg&&(r.at||0)>(taskCfg._at||0)){taskCfg={...r.cfg,_at:r.at};saveTaskCfg(true);if($('p-tasksapp')?.classList.contains('active'))renderTasks()}}
 const taskFallback=()=>txt(taskCfg.fallback)||'632';
 const rawNum=(x,k)=>num(String(pick(x.raw,k)).replace(/[^\d.-]/g,''));
+const TASK_STATUS={notdone:['Not Done (DR P > 0 و DR D = 0)',r=>r.p>0&&r.d===0],partial:['زيارة إضافية / جزئي (DR P > DR D ≥ 1)',r=>r.d>=1&&r.p-r.d>=1],planned:['له خطة طبيب (DR P > 0)',r=>r.p>0],all:['كل الحالات',()=>true]};
+const TASK_NOTE_MODES={any:'أي GP Note',empty:'بدون GP Note',contains:'GP Note يحتوي'};
+const taskCustoms=()=>Array.isArray(taskCfg.custom)?taskCfg.custom:[];
+function taskCustomTest(c,x,r,doctor){
+  if(!(TASK_STATUS[c.status]||TASK_STATUS.notdone)[1](r))return false;
+  if(c.doctor&&doctor!==c.doctor)return false;
+  if(c.city&&x.city!==c.city)return false;
+  const n=(r.note||'').toLowerCase();
+  if(c.noteMode==='empty')return !n;
+  if(c.noteMode==='contains'){const parts=String(c.note||'').toLowerCase().split('|').map(v=>v.trim()).filter(Boolean);return !parts.length||parts.some(p=>n.includes(p))}
+  return true;
+}
+function taskCustomCard(c,counts,docs,cities){return`<div class="taskRule taskCustom ${c.on===false?'off':''}" data-tcustom="${esc(c.id)}">
+  <label class="taskRuleTop"><input type="checkbox" data-tc="on" ${c.on===false?'':'checked'}> <input data-tc="name" value="${esc(c.name||'')}" placeholder="اسم القاعدة" style="flex:1"> <span class="taskCount">${counts['c:'+c.id]||0} حالة</span> <button class="mini" data-tdel="${esc(c.id)}" title="حذف">🗑</button></label>
+  <div class="taskGrid2"><label>الحالة<select data-tc="status">${Object.entries(TASK_STATUS).map(([k,[l]])=>`<option value="${k}" ${(c.status||'notdone')===k?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
+  <label>الطبيب<select data-tc="doctor"><option value="">كل الأطباء</option>${docs.map(o=>`<option ${c.doctor===o?'selected':''}>${esc(o)}</option>`).join('')}</select></label>
+  <label>المدينة<select data-tc="city"><option value="">كل المدن</option>${cities.map(o=>`<option ${c.city===o?'selected':''}>${esc(o)}</option>`).join('')}</select></label>
+  <label>GP Note<select data-tc="noteMode">${Object.entries(TASK_NOTE_MODES).map(([k,l])=>`<option value="${k}" ${(c.noteMode||'any')===k?'selected':''}>${l}</option>`).join('')}</select></label></div>
+  ${c.noteMode==='contains'?`<label>النص (أكثر من كلمة: افصل بـ |)<input data-tc="note" value="${esc(c.note||'')}" placeholder="مثال: refused|رفض"></label>`:''}
+  <label>يُرسل إلى <input data-tc="employee" value="${esc(c.employee||'')}" placeholder="فارغ = طبيب الحالة"></label>
+  <label>العنوان <input data-tc="title" maxlength="35" value="${esc(c.title||'')}"></label>
+  <label>الرسالة <textarea data-tc="message" rows="3">${esc(c.message||'')}</textarea></label></div>`}
 function taskCases(){
   // dashboard filters apply (filtered excludes Deactive); raw DR P/D so extra visits are seen before partial zeroing
   const out=[];
   filtered.forEach(x=>{
     const r={p:rawNum(x,'DR P'),d:rawNum(x,'DR D'),note:txt(x.note)};
+    const doctor0=/^#?n\/?a$|^unassigned$/i.test(x.doctor)?'':x.doctor;
+    const fill0=v=>String(v||'').replace(/\{DR_P\}/g,r.p).replace(/\{DR_D\}/g,r.d).replace(/\{NOTE\}/g,r.note||'—').replace(/\{DOCTOR\}/g,doctor0||'—').replace(/\{PTID\}/g,x.id);
+    const cr=taskCustoms().find(c=>c.on!==false&&taskCustomTest(c,x,r,doctor0));
+    if(cr){out.push({x,rule:{id:'c:'+cr.id,label:'★ '+(cr.name||'قاعدة مخصصة')},r,ptid:x.id,doctor:doctor0,employee:txt(cr.employee)||doctor0||taskFallback(),title:fill0(cr.title).slice(0,35),message:fill0(cr.message),sent:taskState.sent[x.id]||null});return}
     for(const base of TASK_RULES_DEFAULT){
       const rule=taskRule(base.id);if(!rule.on||!base.test(r))continue;
       const doctor=/^#?n\/?a$|^unassigned$/i.test(x.doctor)?'':x.doctor;
       const fill=s=>String(s||'').replace(/\{DR_P\}/g,r.p).replace(/\{DR_D\}/g,r.d).replace(/\{NOTE\}/g,r.note||'—').replace(/\{DOCTOR\}/g,doctor||'—').replace(/\{PTID\}/g,x.id);
-      out.push({x,rule,r,ptid:x.id,doctor,employee:txt(rule.employee)||doctor||taskFallback(),title:fill(rule.title).slice(0,35),message:fill(rule.message)});
+      out.push({x,rule,r,ptid:x.id,doctor,employee:txt(rule.employee)||doctor||taskFallback(),title:fill(rule.title).slice(0,35),message:fill(rule.message),sent:taskState.sent[x.id]||null});
       break;
     }
   });
   return out;
 }
-function taskVisible(all){const q=norm(taskState.q);return all.filter(c=>(!taskState.reason||c.rule.id===taskState.reason)&&(!taskState.doctor||c.doctor===taskState.doctor)&&(!q||norm(`${c.ptid} ${c.doctor} ${c.r.note}`).includes(q)))}
-function taskSelected(){return taskVisible(taskCases()).filter(c=>!taskState.off.has(c.ptid))}
+function taskVisible(all){const q=norm(taskState.q);return all.filter(c=>(taskState.showSent||!c.sent)&&(!taskState.reason||c.rule.id===taskState.reason)&&(!taskState.doctor||c.doctor===taskState.doctor)&&(!q||norm(`${c.ptid} ${c.doctor} ${c.r.note}`).includes(q)))}
+function taskSelected(){return taskVisible(taskCases()).filter(c=>!c.sent&&!taskState.off.has(c.ptid))}
 function taskWorkbook(list){
   const H=['PTID','Case Doctor','Status','Reason','Task Type','Task Priority','Task Category','Task Subcategory','Rule','Doctor','City','DR P (report)','DR D (report)','GP Note (report)'];
   const f=k=>txt((taskCfg.fields||{})[k]);
@@ -822,7 +848,7 @@ const taskFileName=()=>`تاسكات التحليل الأسبوعي - ${new Dat
 function renderTasks(){
   const el=$('p-tasksapp');if(!el)return;
   if(!rows.length){el.innerHTML='<div class="taskEmpty">حمّل تقرير الأداء أو اجلبه من iCare أولاً — تُبنى التاسكات من حالات التقرير حسب فلاتر الداشبورد.</div>';return}
-  const all=taskCases(),vis=taskVisible(all),sel=vis.filter(c=>!taskState.off.has(c.ptid));
+  const all=taskCases(),vis=taskVisible(all),sel=vis.filter(c=>!c.sent&&!taskState.off.has(c.ptid)),sentN=all.filter(c=>c.sent).length,cities=[...new Set(filtered.map(x=>x.city).filter(Boolean))].sort();
   const counts={};all.forEach(c=>counts[c.rule.id]=(counts[c.rule.id]||0)+1);
   const docs=[...new Set(all.map(c=>c.doctor).filter(Boolean))].sort();
   const ext=taskState.ext;
@@ -830,20 +856,22 @@ function renderTasks(){
   <div class="taskHead"><div><h2>📨 فتح التاسكات في iCare</h2><p>الحالات من التقرير الحالي حسب فلاتر الداشبورد (${filtered.length} مريض نشط). كل حالة تأخذ أول قاعدة تنطبق عليها. التشغيل يتم من نافذة الإضافة بعد المراجعة — لا يُرسل شيء من هذه الصفحة.</p></div>
   <div class="taskExt ${ext&&ext.ok&&ext.tasks?'ok':'bad'}">${ext==null?'⏳ التحقق من الإضافة…':ext.ok&&ext.tasks?`✅ الإضافة ${esc(ext.version)}${ext.hasToken?' — جلسة iCare نشطة':' — ⚠ سجّل الدخول في iCare'}`:'⚠ إضافة «FutureCare Weekly — iCare Reports & Tasks» 1.1.0+ غير مثبتة — يمكنك تنزيل الملف واستيراده يدوياً'}</div></div>
   <h3>القواعد (سبب الإرسال)</h3>
-  <div class="taskRules">${TASK_RULES_DEFAULT.map(b=>{const r=taskRule(b.id);return`<div class="taskRule ${r.on?'':'off'}" data-rule="${b.id}">
+  <div class="taskRules">${taskCustoms().map(c=>taskCustomCard(c,counts,docs,cities)).join('')}${TASK_RULES_DEFAULT.map(b=>{const r=taskRule(b.id);return`<div class="taskRule ${r.on?'':'off'}" data-rule="${b.id}">
     <label class="taskRuleTop"><input type="checkbox" data-tk="on" ${r.on?'checked':''}> <b>${esc(b.label)}</b> <span class="taskCount">${counts[b.id]||0} حالة</span></label>
     <label>يُرسل إلى <input data-tk="employee" value="${esc(r.employee)}" placeholder="فارغ = طبيب الحالة"> <small>${esc(b.to)}${b.employee?` (${b.employee})`:''}</small></label>
     <label>العنوان <input data-tk="title" maxlength="35" value="${esc(r.title)}"> <small>${String(r.title||'').length}/35</small></label>
     <label>الرسالة <textarea data-tk="message" rows="3">${esc(r.message)}</textarea></label></div>`}).join('')}</div>
+  <div class="taskActions"><button class="btn white" id="taskAddCustom">➕ قاعدة مخصصة (فلتر + رسالة)</button><button class="btn white" id="taskAddFromFilter" title="تأخذ الطبيب من فلتر هذا التبويب والمدينة من فلتر الداشبورد">➕ من الفلتر الحالي</button></div>
   <p class="taskHint">في العنوان والرسالة: <code>{DR_P}</code> <code>{DR_D}</code> <code>{NOTE}</code> <code>{DOCTOR}</code> <code>{PTID}</code>. "طبيب الحالة" = اسم الطبيب في التقرير؛ إن لم يوجد طبيب يُرسل إلى <input id="taskFallback" value="${esc(taskFallback())}" size="6">. <button class="mini" id="taskReset">↩ القيم الافتراضية</button></p>
   <div class="taskFields">${TASK_FIELDS.map(([k,,l])=>`<label>${l} <input data-tf="${k}" value="${esc((taskCfg.fields||{})[k]||'')}" placeholder="افتراضي iCare"></label>`).join('')}</div>
   <h3>الحالات (${vis.length}) — المحدد للإرسال: <span id="taskSelCount">${sel.length}</span></h3>
-  <div class="taskFilters"><select id="taskReason"><option value="">كل الأسباب</option>${TASK_RULES_DEFAULT.filter(b=>taskRule(b.id).on).map(b=>`<option value="${b.id}" ${taskState.reason===b.id?'selected':''}>${esc(b.label)} (${counts[b.id]||0})</option>`).join('')}</select>
+  <div class="taskFilters"><select id="taskReason"><option value="">كل الأسباب</option>${taskCustoms().filter(c=>c.on!==false).map(c=>`<option value="c:${esc(c.id)}" ${taskState.reason==='c:'+c.id?'selected':''}>★ ${esc(c.name||'قاعدة مخصصة')} (${counts['c:'+c.id]||0})</option>`).join('')}${TASK_RULES_DEFAULT.filter(b=>taskRule(b.id).on).map(b=>`<option value="${b.id}" ${taskState.reason===b.id?'selected':''}>${esc(b.label)} (${counts[b.id]||0})</option>`).join('')}</select>
   <select id="taskDoctor"><option value="">كل الأطباء</option>${docs.map(d=>`<option ${taskState.doctor===d?'selected':''}>${esc(d)}</option>`).join('')}</select>
   <input id="taskQ" placeholder="بحث PTID / طبيب / ملاحظة" value="${esc(taskState.q)}">
   <button class="mini" id="taskAll">تحديد الكل</button><button class="mini" id="taskNone">إلغاء الكل</button></div>
+  <div class="taskHint taskSentLine">✓ أُرسل لها تاسك في هذا الشهر: <b>${sentN}</b> حالة — كل حالة يُفتح لها تاسك مرة واحدة ولا تُعرض للإرسال مرة أخرى · <label><input type="checkbox" id="taskShowSent" ${taskState.showSent?'checked':''}> إظهارها</label></div>
   <div class="tableWrap taskTable"><table><thead><tr><th></th><th>PTID</th><th>الطبيب</th><th>المدينة</th><th>DR P/D</th><th>GP Note</th><th>السبب</th><th>يُرسل إلى</th><th>العنوان</th><th>الرسالة</th></tr></thead><tbody>
-  ${vis.slice(0,1500).map(c=>`<tr class="${taskState.off.has(c.ptid)?'off':''}"><td><input type="checkbox" data-tp="${esc(c.ptid)}" ${taskState.off.has(c.ptid)?'':'checked'}></td><td>${esc(c.ptid)}</td><td>${esc(c.doctor||'—')}</td><td>${esc(c.x.city)}</td><td>${c.r.p}/${c.r.d}</td><td>${esc(c.r.note||'—')}</td><td>${esc(c.rule.label)}</td><td><b>${esc(c.employee)}</b></td><td>${esc(c.title)}</td><td class="taskMsg">${esc(c.message).replace(/\n/g,'<br>')}</td></tr>`).join('')||'<tr><td colspan="10">لا توجد حالات تنطبق عليها القواعد المفعّلة.</td></tr>'}
+  ${vis.slice(0,1500).map(c=>`<tr class="${c.sent?'sent':taskState.off.has(c.ptid)?'off':''}"><td>${c.sent?`<span class="taskSentMark" title="${esc((c.sent.title||'')+' → '+(c.sent.employee||''))}">✓ ${new Date(c.sent.at).toLocaleDateString('ar-SA',{day:'numeric',month:'numeric'})}</span>`:`<input type="checkbox" data-tp="${esc(c.ptid)}" ${taskState.off.has(c.ptid)?'':'checked'}>`}</td><td>${esc(c.ptid)}</td><td>${esc(c.doctor||'—')}</td><td>${esc(c.x.city)}</td><td>${c.r.p}/${c.r.d}</td><td>${esc(c.r.note||'—')}</td><td>${esc(c.rule.label)}</td><td><b>${esc(c.employee)}</b></td><td>${esc(c.title)}</td><td class="taskMsg">${esc(c.message).replace(/\n/g,'<br>')}</td></tr>`).join('')||'<tr><td colspan="10">لا توجد حالات تنطبق عليها القواعد المفعّلة.</td></tr>'}
   </tbody></table></div>${vis.length>1500?'<p class="taskHint">يُعرض أول 1500 حالة — الإرسال يشمل كل المحدد.</p>':''}
   <div class="taskActions"><button class="btn green" id="taskSend" ${sel.length&&ext&&ext.ok&&ext.tasks?'':'disabled'}>📨 إرسال ${sel.length} تاسك إلى الإضافة للتشغيل</button>
   <button class="btn white" id="taskXlsx" ${sel.length?'':'disabled'}>⬇ تنزيل ملف التاسكات (Excel)</button></div>
@@ -853,12 +881,17 @@ function setupTasksTab(){
   const tabs=$('tabs'),reportBtn=tabs.querySelector('[data-p="report"]');
   const b=document.createElement('button');b.className='tab';b.dataset.p='tasksapp';b.textContent='📨 التاسكات';tabs.insertBefore(b,reportBtn);
   const p=document.createElement('div');p.className='panel';p.id='p-tasksapp';$('p-report').before(p);TAB_LABELS.tasksapp='التاسكات';
-  const st=document.createElement('style');st.textContent=`.taskWrap h2{margin:0 0 4px}.taskWrap h3{margin:18px 0 8px}.taskHead{display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap}.taskHead p{margin:0;color:var(--muted,#64748b);max-width:720px}.taskExt{padding:8px 12px;border-radius:10px;font-size:13px;align-self:flex-start}.taskExt.ok{background:#dcfce7;color:#166534}.taskExt.bad{background:#fef3c7;color:#92400e}.taskRules{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px}.taskRule{border:1px solid #cbd5e1;border-radius:12px;padding:10px;display:grid;gap:6px;background:rgba(255,255,255,.6)}.taskRule.off{opacity:.55}.taskRule label{display:grid;gap:3px;font-size:13px}.taskRule .taskRuleTop{display:flex;gap:6px;align-items:center}.taskRule input:not([type]),.taskRule textarea,.taskFields input,.taskFilters input,.taskFilters select{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}.taskCount{margin-inline-start:auto;background:#0f766e;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px}.taskFields{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;font-size:13px}.taskFilters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.taskFilters select,.taskFilters input{width:auto;min-width:160px}#p-tasksapp{min-width:0;max-width:100%}.taskWrap{min-width:0;max-width:100%}.taskTable{overflow:auto;max-width:100%;max-height:70vh}.taskTable table{min-width:900px}.taskTable tr.off td{opacity:.45}.taskMsg{min-width:260px;font-size:12px}.taskActions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.taskHint{font-size:12px;color:var(--muted,#64748b)}.taskEmpty{padding:30px;text-align:center;color:var(--muted,#64748b)}body.dark .taskRule{background:rgba(15,23,42,.5);border-color:#334155}body.dark .taskRule input,body.dark .taskRule textarea,body.dark .taskFields input,body.dark .taskFilters input,body.dark .taskFilters select{background:#0f172a;color:#e2e8f0;border-color:#334155}`;document.head.appendChild(st);
-  const checkExt=async()=>{if(!window.fcIcare){taskState.ext={ok:false};return}taskState.ext=await window.fcIcare.ask('STATUS');if(taskState.ext.ok)syncTaskRules();if($('p-tasksapp').classList.contains('active'))renderTasks()};
+  const st=document.createElement('style');st.textContent=`.taskWrap h2{margin:0 0 4px}.taskWrap h3{margin:18px 0 8px}.taskHead{display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap}.taskHead p{margin:0;color:var(--muted,#64748b);max-width:720px}.taskExt{padding:8px 12px;border-radius:10px;font-size:13px;align-self:flex-start}.taskExt.ok{background:#dcfce7;color:#166534}.taskExt.bad{background:#fef3c7;color:#92400e}.taskRules{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px}.taskRule{border:1px solid #cbd5e1;border-radius:12px;padding:10px;display:grid;gap:6px;background:rgba(255,255,255,.6)}.taskRule.off{opacity:.55}.taskRule label{display:grid;gap:3px;font-size:13px}.taskRule .taskRuleTop{display:flex;gap:6px;align-items:center}.taskRule input:not([type]),.taskRule textarea,.taskFields input,.taskFilters input,.taskFilters select{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}.taskCount{margin-inline-start:auto;background:#0f766e;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px}.taskFields{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;font-size:13px}.taskFilters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.taskFilters select,.taskFilters input{width:auto;min-width:160px}#p-tasksapp{min-width:0;max-width:100%}.taskWrap{min-width:0;max-width:100%}.taskTable{overflow:auto;max-width:100%;max-height:70vh}.taskTable table{min-width:900px}.taskTable tr.off td{opacity:.45}.taskTable tr.sent td{background:rgba(22,163,74,.08);color:#4b6b4b}.taskSentMark{color:#15803d;font-weight:700;white-space:nowrap}.taskSentLine{background:rgba(22,163,74,.1);border-radius:8px;padding:6px 10px;margin:8px 0}.taskCustom{border-color:#C9A227;background:rgba(201,162,39,.08)}.taskGrid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px}.taskRule select{width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}body.dark .taskRule select{background:#0f172a;color:#e2e8f0;border-color:#334155}.taskMsg{min-width:260px;font-size:12px}.taskActions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.taskHint{font-size:12px;color:var(--muted,#64748b)}.taskEmpty{padding:30px;text-align:center;color:var(--muted,#64748b)}body.dark .taskRule{background:rgba(15,23,42,.5);border-color:#334155}body.dark .taskRule input,body.dark .taskRule textarea,body.dark .taskFields input,body.dark .taskFilters input,body.dark .taskFilters select{background:#0f172a;color:#e2e8f0;border-color:#334155}`;document.head.appendChild(st);
+  const refreshTaskSent=async()=>{if(!window.fcIcare||!taskState.ext||!taskState.ext.ok||!taskState.ext.sentApi)return;const ptids=[...new Set(taskCases().map(c=>c.ptid))];if(!ptids.length)return;let month='';try{month=String(reportPeriod().to).slice(0,7)}catch{}const r=await window.fcIcare.ask('SENT',{ptids,month},15000);if(r&&r.ok){taskState.sent=r.sent||{};if($('p-tasksapp').classList.contains('active'))renderTasks()}};
+  const checkExt=async()=>{if(!window.fcIcare){taskState.ext={ok:false};return}taskState.ext=await window.fcIcare.ask('STATUS');if(taskState.ext.ok)syncTaskRules();if($('p-tasksapp').classList.contains('active'))renderTasks();refreshTaskSent()};
+  window.addEventListener('focus',()=>{if($('p-tasksapp').classList.contains('active'))checkExt()});
   tabs.addEventListener('click',e=>{if(e.target.closest('.tab')?.dataset.p==='tasksapp'){renderTasks();checkExt()}});
   const rerender=()=>{const y=window.scrollY;renderTasks();window.scrollTo(0,y)};
   p.addEventListener('change',e=>{
     const t=e.target,rid=t.closest('[data-rule]')?.dataset.rule;
+    const cid=t.closest('[data-tcustom]')?.dataset.tcustom;
+    if(cid&&t.dataset.tc){const c=taskCustoms().find(v=>v.id===cid);if(c){c[t.dataset.tc]=t.type==='checkbox'?t.checked:t.value;saveTaskCfg()}return rerender()}
+    if(t.id==='taskShowSent'){taskState.showSent=t.checked;return rerender()}
     if(rid&&t.dataset.tk){taskCfg.rules=taskCfg.rules||{};taskCfg.rules[rid]={...(taskCfg.rules[rid]||{}),[t.dataset.tk]:t.type==='checkbox'?t.checked:t.value};saveTaskCfg();return rerender()}
     if(t.dataset.tf){taskCfg.fields={...(taskCfg.fields||{}),[t.dataset.tf]:t.value.trim()};return saveTaskCfg()}
     if(t.id==='taskFallback'){taskCfg.fallback=t.value.trim();saveTaskCfg();return rerender()}
@@ -870,6 +903,9 @@ function setupTasksTab(){
     if(e.target.dataset.tk==='title'){const s=e.target.nextElementSibling;if(s)s.textContent=`${e.target.value.length}/35`}});
   p.addEventListener('click',async e=>{
     const id=e.target.id;
+    if(id==='taskAddCustom'||id==='taskAddFromFilter'){const fromF=id==='taskAddFromFilter',cityV=fromF?($('city')?.value||''):'';taskCfg.custom=[...taskCustoms(),{id:Date.now().toString(36),on:true,name:fromF?[taskState.doctor,cityV].filter(Boolean).join(' / ')||'قاعدة مخصصة':'قاعدة مخصصة',status:'notdone',doctor:fromF?taskState.doctor:'',city:cityV,noteMode:'any',note:'',employee:'',title:'متابعة زيارة الطبيب',message:'زيارة الطبيب مخططة ({DR_P}) والمنفذ ({DR_D}). GP Note: {NOTE}. الرجاء المتابعة واتخاذ اللازم.'}];saveTaskCfg();return rerender()}
+    const del=e.target.closest('[data-tdel]');
+    if(del){if(confirm('حذف هذه القاعدة المخصصة؟')){taskCfg.custom=taskCustoms().filter(c=>c.id!==del.dataset.tdel);saveTaskCfg();rerender()}return}
     if(id==='taskAll'){taskVisible(taskCases()).forEach(c=>taskState.off.delete(c.ptid));return rerender()}
     if(id==='taskNone'){taskVisible(taskCases()).forEach(c=>taskState.off.add(c.ptid));return rerender()}
     if(id==='taskReset'){if(confirm('إرجاع القواعد والحقول إلى القيم الافتراضية؟')){taskCfg={};saveTaskCfg();rerender()}return}
