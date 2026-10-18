@@ -42,7 +42,7 @@
   // keep the extension's 📊 tab in step with the report loaded here (main page only; silent if no extension)
   const pushReport=file=>{if(window!==window.top||!file)return;file.arrayBuffer().then(buffer=>ask('SYNC_REPORT',{name:file.name,buffer},15000)).catch(()=>{})};
   function feed(file){
-    lastFile=file;pushReport(file);
+    lastFile=file;
     const input=document.querySelector(cfg.input);if(!input)throw Error('لم يتم العثور على حقل رفع الملف في هذه الصفحة');
     const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
   }
@@ -55,11 +55,14 @@
       <label>الشهر <input type="month" id="icareMonth" value="${thisMonth()}"></label>
       ${Object.entries(src.cities).map(([k,v])=>`<label><input type="checkbox" class="icareCity" value="${k}" checked> ${v}</label>`).join('')}
       <button type="button" id="icareFetch">جلب الآن</button>
+      <button type="button" id="icareLocal" hidden title="التقرير المحفوظ محلياً في الإضافة (جلب يومي تلقائي أو آخر جلب) — يُحمَّل دون جلب جديد"></button>
       <button type="button" id="icareTasks" hidden title="يفتح نافذة التاسكات في الإضافة مع هذا التقرير للمراجعة — لا يُرسل شيء قبل أن تبدأ التشغيل هناك">📨 فتح تاسكات iCare من هذا التقرير</button></div>
       <div class="msg" id="icareMsg" role="status">⏳ التحقق من إضافة iCare…</div>
       <div class="how">المصدر: <a href="${src.url}" target="_blank" rel="noopener">${esc(src.url.replace('https://',''))}</a> — ${esc(cfg.how)}</div>`;
     anchor.parentNode.insertBefore(box,anchor);
     const msg=box.querySelector('#icareMsg'),btn=box.querySelector('#icareFetch'),tbtn=box.querySelector('#icareTasks');
+    const lbtn=box.querySelector('#icareLocal');
+    const dayName=ms=>{const d=new Date(ms),t=new Date();return d.toDateString()===t.toDateString()?'اليوم':d.toLocaleDateString('ar-SA',{day:'numeric',month:'numeric'})};
     let tasksOk=false;const syncTasks=()=>{tbtn.hidden=!tasksOk;tbtn.disabled=!lastFile};
     const input=document.querySelector(cfg.input);input&&input.addEventListener('change',()=>{if(input.files&&input.files[0]&&input.files[0]!==lastFile){lastFile=input.files[0];pushReport(lastFile);syncTasks()}});
     anchor.addEventListener('drop',e=>{const f=e.dataTransfer&&e.dataTransfer.files[0];if(f){lastFile=f;pushReport(f);syncTasks()}},true);
@@ -69,6 +72,7 @@
       if(received)return; // a report from the main page is already shown
       if(!s.ok){say(ERR.NO_EXTENSION+' ثبّتها من مجلد "FutureCare Weekly iCare" على سطح المكتب (chrome://extensions ← Load unpacked).',true);return}
       btn.disabled=false;tasksOk=!!s.tasks;syncTasks();
+      if(s.localAt){lbtn.hidden=false;lbtn.textContent='📦 نسخة محلية: '+dayName(s.localAt)+' '+new Date(s.localAt).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'})+(s.localHow==='auto'?' (تلقائي)':s.localHow==='manual'?' (يدوي)':'')}
       say(s.hasToken?`✅ متصل بجلسة iCare (الإضافة ${s.version}).`:'⚠️ الإضافة جاهزة لكن لا توجد جلسة iCare — افتح iCare وسجّل الدخول.',!s.hasToken);
     });
     btn.onclick=async()=>{
@@ -87,6 +91,15 @@
       syncTasks();share(file,summary);
     };
     // Receive a report fetched in the main page (this page embedded as a tab) without fetching again.
+    lbtn.onclick=async()=>{
+      lbtn.disabled=true;say('⏳ تحميل النسخة المحلية…');
+      const r=await ask('GET_REPORT',{},30000);lbtn.disabled=false;
+      if(!r.ok||!r.b64){say('لا توجد نسخة محلية في الإضافة بعد — اضغط «جلب الآن».',true);return}
+      const bin=atob(r.b64),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+      const file=new File([u],r.name||'performance-report.xls',{type:'application/vnd.ms-excel'});
+      try{feed(file)}catch(e){say(e.message,true);return}
+      syncTasks();say('📦 حُمِّلت النسخة المحلية المحفوظة في الإضافة ('+dayName(r.at)+' '+new Date(r.at).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'})+') — بدون جلب جديد.');share(file,'نسخة محلية');
+    };
     tbtn.onclick=async()=>{
       if(!lastFile)return say('حمّل التقرير أو اجلبه أولاً.',true);
       tbtn.disabled=true;say('⏳ فتح نافذة التاسكات…');

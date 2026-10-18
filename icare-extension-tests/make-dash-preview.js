@@ -29,8 +29,9 @@ let html = fs.readFileSync(path.join(EXT, 'popup.html'), 'utf8')
   chrome.tabs.create = async o => { window.__opened = o.url; return { id: 5 }; };
   const send = chrome.runtime.sendMessage;
   chrome.runtime.sendMessage = async m => {
-    if (m.type === 'FCW_FETCH_PERFORMANCE') { window.__fetched = m; await chrome.storage.local.set({ weeklyReport: { name: 'performance-report_2026-10_Jeddah-Makkah-Yanbu.xls', b64: ${JSON.stringify(b64)}, source: 'icare', at: Date.now() } });
+    if (m.type === 'FCW_FETCH_PERFORMANCE') { window.__fetched = m; await chrome.storage.local.set({ weeklyReport: { name: 'performance-report_2026-10_Jeddah-Makkah-Yanbu.xls', b64: ${JSON.stringify(b64)}, source: 'icare', how: 'manual', at: Date.now() } });
       return { ok: true, month: m.month, counts: ${JSON.stringify(rep.counts)}, rows: new Array(${raw.length}) }; }
+    if (m.type === 'FCW_STATUS') return { ok: true, hasToken: true, version: 'test' };
     return send(m);
   };
 })();</script>

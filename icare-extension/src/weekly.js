@@ -92,7 +92,7 @@ async function fetchPerformance({ month, cities }){
         }
       }
     }
-    return { ok: true, month, matched, missing, counts, headers: PERF_HEADERS, rows: all.map((r, i) => perfRow(r, i + 1)), fetchedAt: new Date().toISOString() };
+    return { ok: true, month, matched, missing, counts, headers: PERF_HEADERS, rows: all.map((r, i) => perfRow(r, i + 1)), snap: snapshotOf(all, month), fetchedAt: new Date().toISOString() };
   } catch(e){
     return { ok: false, code: e.code || 'NETWORK' };
   }
@@ -105,12 +105,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const build = /^\d{1,6}$/.test(String(msg.build || '')) ? String(msg.build) : '';
     (msg.token
       ? chrome.storage.session.set({ icareToken: msg.token, tokenAt: Date.now(), ...(build ? { icareBuild: build } : {}) })
-      : chrome.storage.session.remove(['icareToken', 'tokenAt'])).then(() => sendResponse({ ok: true }));
+      : chrome.storage.session.remove(['icareToken', 'tokenAt'])).then(() => { sendResponse({ ok: true }); if(msg.token) setTimeout(dailyCheck, 2500); });
     return true;
   }
   if(msg && msg.type === 'FCW_STATUS'){
     if(!PAGE_ORIGINS.includes(from) && sender.id !== chrome.runtime.id) return;
-    getToken().then(t => sendResponse({ ok: true, hasToken: !!t.token, tokenAt: t.at, version: chrome.runtime.getManifest().version, tasks: true, sentApi: 1 }));
+    Promise.all([getToken(), chrome.storage.local.get(['weeklyLocal', 'weeklyDaily'])]).then(([t, { weeklyLocal: w, weeklyDaily: d }]) => sendResponse({ ok: true, hasToken: !!t.token, tokenAt: t.at, version: chrome.runtime.getManifest().version, tasks: true, sentApi: 1,
+      localAt: w ? w.at : 0, localHow: (d && d.lastHow) || (w && w.how) || '' }));
     return true;
   }
   // The weekly site hands over its current report: the task window opens with it imported, for review.
@@ -128,8 +129,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if(msg && msg.type === 'FCW_FETCH_PERFORMANCE'){
     if(!PAGE_ORIGINS.includes(from) && !fromExtensionPage(sender)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
     fetchPerformance(msg).then(async r => {
-      if(r.ok && r.rows.length) await keepReport({ name: `performance-report_${r.month}_${Object.keys(r.counts).join('-')}.xls`, b64: reportB64(r), source: 'icare', month: r.month, counts: r.counts });
-      sendResponse(r);
+      if(r.ok && r.rows.length) await recordFetch(r, 'manual');
+      const { snap, ...rest } = r; // the snapshot stays inside the extension
+      sendResponse(rest);
     });
     return true;
   }
@@ -139,7 +141,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if(msg && msg.type === 'FCW_SENT'){
     if(!PAGE_ORIGINS.includes(from)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
     const ptids = (Array.isArray(msg.ptids) ? msg.ptids : []).slice(0, 5000).map(x => String(x).slice(0, 20));
-    const month = /^d{4}-d{2}$/.test(String(msg.month || '')) ? String(msg.month) : '';
+    const month = /^\d{4}-\d{2}$/.test(String(msg.month || '')) ? String(msg.month) : '';
     chrome.storage.local.get('sentHistory').then(({ sentHistory = {} }) => {
       const sent = {};
       for(const p of ptids){
@@ -147,6 +149,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if(l.length){ const e = l[l.length - 1]; sent[p] = { at: e.at, employee: e.employee || '', title: e.title || '', state: e.state || '' }; }
       }
       sendResponse({ ok: true, sent });
+    });
+    return true;
+  }
+  // The latest local copy (daily fetch or last manual fetch) so the site can load it without fetching again.
+  if(msg && msg.type === 'FCW_GET_REPORT'){
+    if(!PAGE_ORIGINS.includes(from)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
+    chrome.storage.local.get(['weeklyLocal', 'weeklyDaily']).then(({ weeklyLocal: w, weeklyDaily: d }) => {
+      if(!w) return sendResponse({ ok: false, code: 'NO_LOCAL_COPY' });
+      sendResponse({ ok: true, name: w.name, b64: w.b64, at: w.at, how: (d && d.lastHow) || w.how || '', month: w.month || '' });
     });
     return true;
   }
@@ -163,6 +174,60 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 });
+
+// ── Daily fetch + local copies ─────────────────────────────────────────────────────────────────────
+// Once per day (needs an iCare session, so it also fires when an iCare tab provides the token) the current
+// month's report for Jeddah, Makkah and Yanbu is fetched and kept locally (weeklyReport = latest file,
+// weeklyDaily.snapshots = compact copy of the last 14 days used for alerts and trends). Manual fetches count too.
+const localDate = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+function snapshotOf(raw, month){
+  const act = raw.filter(r => !/de-?active|inactive/i.test(String(r.patient_status || '')));
+  const snap = { date: localDate(), at: new Date().toISOString(), month, n: act.length, plan: 0, done: 0, nd: 0, noNote: 0, byDoc: {}, byCity: {}, ndPtids: [] };
+  for(const r of act){
+    const p = Number((r.plan && r.plan.dr) || 0), d = Number((r.done && r.done.Dr) || 0), eff = d > 0 && p > d ? d : p;
+    const doc = String(r.doctor_name || '').trim() || '—', city = String(r.city || '').trim() || '—', nd = p > 0 && d === 0;
+    snap.plan += eff; snap.done += d;
+    if(nd){ snap.nd++; snap.ndPtids.push(String(r.patient_id)); if(!firstNote(r.notes && r.notes.gp)) snap.noNote++; }
+    for(const [m, k] of [[snap.byDoc, doc], [snap.byCity, city]]){
+      const o = m[k] || (m[k] = { n: 0, plan: 0, done: 0, nd: 0 });
+      o.n++; o.plan += eff; o.done += d; if(nd) o.nd++;
+    }
+  }
+  return snap;
+}
+async function recordFetch(r, how){
+  const rep = { name: `performance-report_${r.month}_${Object.keys(r.counts).join('-')}.xls`, b64: reportB64(r), source: 'icare', month: r.month, counts: r.counts, how, at: Date.now() };
+  // weeklyReport = the report the dashboard works on; weeklyLocal = the latest iCare copy (never replaced by a file loaded by hand)
+  await chrome.storage.local.set({ weeklyReport: rep, weeklyLocal: rep });
+  const { weeklyDaily: d = {} } = await chrome.storage.local.get('weeklyDaily');
+  const snaps = (d.snapshots || []).filter(x => x.date !== r.snap.date);
+  snaps.push(r.snap); snaps.sort((a, b) => (a.date < b.date ? -1 : 1));
+  await chrome.storage.local.set({ weeklyDaily: { ...d, lastDate: r.snap.date, lastAt: r.snap.at, lastHow: how, lastError: '', lastErrorAt: '', snapshots: snaps.slice(-14) } });
+}
+let dailyRunning = false;
+async function dailyCheck(){
+  if(dailyRunning) return;
+  const st = await chrome.storage.local.get(['weeklyAutoFetch', 'weeklyDaily']);
+  if(st.weeklyAutoFetch === false) return;
+  const d = st.weeklyDaily || {}, today = localDate();
+  if(d.lastDate === today) return;
+  if(d.lastErrorAt && Date.now() - Date.parse(d.lastErrorAt) < 55 * 60 * 1000) return; // do not hammer iCare after a failure
+  const { token } = await getToken();
+  if(!token) return; // waits for an iCare tab (the token arrives with it)
+  dailyRunning = true;
+  try{
+    const r = await fetchPerformance({ month: today.slice(0, 7), cities: Object.keys(PERF_CITY_ALIASES) });
+    if(r.ok && r.rows.length) await recordFetch(r, 'auto');
+    else await chrome.storage.local.set({ weeklyDaily: { ...d, lastError: r.ok ? 'EMPTY' : r.code, lastErrorAt: new Date().toISOString() } });
+  } catch(e){
+    await chrome.storage.local.set({ weeklyDaily: { ...d, lastError: 'NETWORK', lastErrorAt: new Date().toISOString() } });
+  } finally { dailyRunning = false; }
+}
+if(chrome.alarms){
+  chrome.alarms.create('fcw-daily', { delayInMinutes: 1, periodInMinutes: 60 });
+  chrome.alarms.onAlarm.addListener(a => { if(a.name === 'fcw-daily') dailyCheck(); });
+}
+setTimeout(dailyCheck, 4000); // service worker start-up
 
 function fromExtensionPage(sender){
   return !sender.tab && String(sender.url || '').startsWith('chrome-extension://' + chrome.runtime.id + '/');

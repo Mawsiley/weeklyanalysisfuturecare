@@ -642,3 +642,11 @@ body.drag-over .imp-drop { background: #e8f4e8; border-color: #1E7E4D; }
 .dash-go { width: 100%; margin-top: 8px; }
 body.full-page .dash-kpis { grid-template-columns: repeat(6, 1fr); }
 body.full-page .dash-table { max-height: 60vh; }
+.dash-alerts { display: grid; gap: 5px; margin: 8px 0; }
+.dash-alert { display: flex; gap: 8px; align-items: center; justify-content: space-between; padding: 6px 9px; border-radius: 8px; border: 1px solid; font-size: 12px; line-height: 1.5; }
+.dash-alert.err { background: #fdecec; border-color: #e5a1a1; color: #8a1f1f; }
+.dash-alert.warn { background: #fff6e0; border-color: #e6c97a; color: #7a5a00; }
+.dash-alert.info { background: #eaf2fb; border-color: #a9c6e8; color: #1d4a7a; }
+.dash-alert.ok { background: #eaf6ea; border-color: #a9d6a9; color: #1f6a1f; }
+.dash-alert button { flex-shrink: 0; }
+.dash-auto { display: flex; gap: 5px; align-items: center; margin-top: 6px; font-size: 12px; color: #444; }
