@@ -1167,7 +1167,7 @@ function renderNewPts(){
   const topPend=npGroup(ro.filter(r=>!(r.cs>0)&&(npDays(r.cr,localToday())??0)>=3),r=>r.doc).slice(0,3);if(topPend.length)alerts.push('👨‍⚕️ أكثر الأطباء تأخراً في زيارة الجدد: '+topPend.map(g=>`${g.key} (${g.p+g.c})`).join('، '));
   el.innerHTML=`<div class="npWrap">
   <div class="npHead"><div><h2>🆕 المرضى الجدد — non-CDM</h2><p>تحليل الشهر السابق (${prev}) والحالي (${cur}) فقط من <a href="https://icare.com.sa/new-file?cdm_siss=non_cdm" target="_blank" rel="noopener">icare.com.sa/new-file?cdm_siss=non_cdm</a>. لا تُقرأ أو تُحفظ أسماء أو أرقام جوال أو هويات. الشهر = شهر تاريخ فتح الملف (File Open Time).</p></div><div class="npExt ${ext&&ext.ok&&ext.newApi?'ok':'bad'}">${extTxt}</div></div>
-  <div class="npBar"><button class="btn green" id="npFetch" ${npState.busy?'disabled':''}>📥 جلب من iCare</button><button class="btn white" id="npLocal">📦 النسخة المحلية</button><button class="btn white" id="npPick">📂 ملف CSV / Excel</button><input type="file" id="npFile" accept=".csv,.xls,.xlsx" hidden><button class="btn white" id="npExport" ${all.length?'':'disabled'}>⬇ تصدير Excel</button>
+  <div class="npBar"><button class="btn green" id="npFetch" ${npState.busy?'disabled':''}>📥 جلب من iCare</button><button class="btn white" id="npLocal">📦 النسخة المحلية</button><button class="btn white" id="npPick">📂 ملف CSV / Excel</button><input type="file" id="npFile" accept=".csv,.xls,.xlsx" hidden><button class="btn white" id="npExport" ${all.length?'':'disabled'}>⬇ تصدير Excel</button><span class="npRep"><b>📑 تقرير الفترة:</b><button class="btn white" id="npRepWord" ${all.length?'':'disabled'}>📄 Word</button><button class="btn white" id="npRepPdf" ${all.length?'':'disabled'}>📕 PDF</button><button class="btn white" id="npRepExcel" ${all.length?'':'disabled'}>📗 Excel</button><button class="btn white" id="npRepPpt" ${all.length?'':'disabled'}>📽 PowerPoint</button></span>
     <select id="npDoctor"><option value="">كل الأطباء</option>${docs.map(d=>`<option ${npState.doctor===d?'selected':''}>${esc(d)}</option>`).join('')}</select><select id="npCity"><option value="">كل المدن</option>${cities.map(d=>`<option ${npState.city===d?'selected':''}>${esc(d)}</option>`).join('')}</select>
     <select id="npProject"><option value="">كل الـ Projects</option>${projects.map(d=>`<option ${npState.project===d?'selected':''}>${esc(d)}</option>`).join('')}</select><select id="npView"><option value="both" ${npState.view==='both'?'selected':''}>الشهران</option><option value="prev" ${npState.view==='prev'?'selected':''}>${L.prev}</option><option value="cur" ${npState.view==='cur'?'selected':''}>${L.cur}</option></select></div>
   <div class="npMsg" role="status">${esc(npState.msg||(npState.src?`المصدر: ${npState.src}${npState.at?' — '+new Date(npState.at).toLocaleString('ar-SA'):''}`:'اجلب البيانات من iCare أو حمّل ملفاً.'))}</div>
@@ -1278,6 +1278,111 @@ function setupActDeact(){
 }
 setupActDeact();
 const renderBeforeActDeact=render;render=function(){const out=renderBeforeActDeact.apply(this,arguments);if($('p-actdeact')?.classList.contains('active'))renderActDeact();return out};
+
+/* 📑 New patients report for the selected period (previous / current / both + doctor / city / project filters):
+   Word, PDF, Excel and PowerPoint (English). Shows what was converted (orders → opened files), the total converted,
+   Active / De-Active / Traveler / Hospital, the visited cases and the services done for each case (P/D from the performance report). */
+const NP_CATS=['Active','De-Active','Traveler','Hospital','Unknown'];
+function npRep(){
+  const {prev,cur}=npMonths(),view=npState.view,rs=npRows(),ro=rs.filter(npOp),cmp=npCompare(ro),perf=cmp.hasPerf;
+  const cat=i=>i.x?i.st:(/^de-?active$/i.test(i.r.act)?'De-Active':/^active$/i.test(i.r.act)?'Active':'Unknown');
+  const items=cmp.items.map(i=>({...i,cat:cat(i)})),visited=items.filter(i=>i.r.cs>0),vm=visited.filter(i=>i.x);
+  const period=view==='prev'?`Previous month (${prev})`:view==='cur'?`Current month (${cur})`:`${prev} and ${cur}`;
+  const filters=[npState.doctor&&'Doctor: '+npState.doctor,npState.city&&'City: '+npState.city,npState.project&&'Project: '+npState.project].filter(Boolean);
+  const pct=(a,b)=>b?Math.round(a/b*100):0,conv=ro.length;
+  const K={orders:rs.length,converted:conv,notOpened:rs.length-conv,convRate:pct(conv,rs.length),referrals:ro.filter(r=>r.ref).length,visited:visited.length,notVisited:conv-visited.length,visitRate:pct(visited.length,conv),matched:cmp.matched,unmatched:items.length-cmp.matched,
+    servicesDone:vm.reduce((a,i)=>a+i.totD,0),servicesPlanned:vm.reduce((a,i)=>a+i.totP,0),avgServices:vm.length?+(vm.reduce((a,i)=>a+i.totD,0)/vm.length).toFixed(1):0,visitedNoService:vm.filter(i=>!i.totD).length};
+  const status=NP_CATS.map(k=>{const l=items.filter(i=>i.cat===k);return{k,n:l.length,pct:pct(l.length,conv),visited:l.filter(i=>i.r.cs>0).length}}).filter(o=>o.n>0||['Active','De-Active','Traveler','Hospital'].includes(o.k));
+  const svc=NP_SVC.map(k=>{const a={n:0,p:0,d:0};vm.forEach(i=>{const v=i.svc[k];if(v){if(v.d>0)a.n++;a.p+=v.p;a.d+=v.d}});return{k,n:a.n,p:a.p,d:a.d,pct:pct(a.d,a.p)}}).filter(o=>o.p||o.d);
+  const grp=keyFn=>{const m=new Map;items.forEach(i=>{const k=keyFn(i)||'—',o=m.get(k)||{key:k,total:0,Active:0,'De-Active':0,Traveler:0,Hospital:0,Unknown:0,visited:0,svcD:0};o.total++;o[i.cat]++;if(i.r.cs>0){o.visited++;o.svcD+=i.totD}m.set(k,o)});return[...m.values()].sort((a,b)=>b.total-a.total)};
+  const doneText=o=>Object.entries(o).filter(([,v])=>v.d>0).map(([k,v])=>k+' '+v.d+(v.p>v.d?'/'+v.p:'')).join(' · ');
+  const cases=visited.map(i=>({ptid:i.r.ptid,opened:npDate(i.r.reg),month:i.month,doctor:i.r.doc||'—',project:i.r.proj||'—',city:i.r.city||'—',status:i.cat,visits:i.r.cs,services:i.x?(doneText(i.svc)||'No services done'):'Not in performance report',totD:i.x?i.totD:'',totP:i.x?i.totP:'',svc:i.x?i.svc:{}})).sort((a,b)=>(+b.totD||0)-(+a.totD||0));
+  const all=items.map(i=>({ptid:i.r.ptid,opened:npDate(i.r.reg),month:i.month,doctor:i.r.doc||'—',project:i.r.proj||'—',city:i.r.city||'—',company:i.r.comp||i.r.ins||'—',status:i.cat,referral:i.r.ref?'Yes':'',visits:i.r.cs,visited:i.r.cs>0?'Yes':'No',totD:i.x?i.totD:'',totP:i.x?i.totP:''}));
+  const data={title:'New Patients Report',period,filters,generated:localToday(),perf,K,status,svc,cases,all,groups:{doctor:grp(i=>i.r.doc),city:grp(i=>i.r.city),project:grp(i=>i.r.proj)},notes:[
+    'Converted cases = new-patient orders whose patient file was opened (File Open Time); every percentage uses the opened files as the base. Each file belongs to the month its file was opened.',
+    perf?'Status (Active / De-Active / Traveler / Hospital) and the services (P/D = planned / done) come from the performance report loaded in the dashboard, matched by PTID; files not found there use the Patient Active flag ('+K.unmatched+' file(s)).':'The performance report is not loaded: Traveler / Hospital and the services could not be determined; Active / De-Active come from the Patient Active flag.',
+    'Visited = at least one CSheet visit. No patient names, mobile numbers or national IDs are read or included.']};
+  window.__npLastReport=data;return data;
+}
+const npSave=(blob,name)=>{if(window.__npCapture){window.__npCapture(blob,name);return}const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500)};
+const npRepName=(d,ext)=>`New_Patients_Report_${d.period.replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')}_${d.generated}.${ext}`;
+const npNA=(d,v)=>d.perf?v:'N/A';
+const npKpiRows=d=>[['New-patient orders (reference, larger number)',d.K.orders],['Total cases converted (patient file opened)',d.K.converted],['Orders without an opened file',d.K.notOpened],['Conversion rate (opened files / orders)',d.K.convRate+'%'],['Referral cases (among converted)',d.K.referrals],
+  ...d.status.filter(o=>o.k!=='Unknown').map(o=>[o.k+(['Traveler','Hospital'].includes(o.k)?' (performance report)':''),npNA(d,o.n)+(d.perf||!['Traveler','Hospital'].includes(o.k)?' ('+o.pct+'%)':'')]),
+  ['Visited (CSheet visits >= 1)',d.K.visited+' ('+d.K.visitRate+'%)'],['Not visited',d.K.notVisited],['Services done for visited patients (D)',npNA(d,d.K.servicesDone)],['Services planned for them (P)',npNA(d,d.K.servicesPlanned)],['Average services done per visited patient',npNA(d,d.K.avgServices)],['Visited patients with no service done',npNA(d,d.K.visitedNoService)]];
+const npGrpHead=['','Converted','Active','De-Active','Traveler','Hospital','Visited','Services done'];
+const npGrpRows=(d,g)=>g.slice(0,60).map(o=>[o.key,o.total,o.Active,o['De-Active'],npNA(d,o.Traveler),npNA(d,o.Hospital),o.visited,npNA(d,o.svcD)]);
+const npCaseHead=['PTID','Opened','Doctor','Project','City','Status','Visits','Services done (D/P)','Total D'];
+const npCaseRows=d=>d.cases.map(c=>[c.ptid,c.opened,c.doctor,c.project,c.city,c.status,c.visits,c.services,c.totD]);
+const npEsc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function npRepWord(){
+  const d=npRep(),tb=(head,rows,w)=>'<table><thead><tr>'+head.map(h=>'<th>'+npEsc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map((c,i)=>'<td'+(i>0&&typeof c==='number'?' style="text-align:right"':'')+'>'+npEsc(c)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+  const html='<html><head><meta charset="utf-8"><style>body{font-family:Calibri,Arial,sans-serif;font-size:10.5pt;color:#111}h1{color:#0b1f3a;font-size:20pt;margin:0}h2{color:#164E83;font-size:13pt;border-bottom:2px solid #164E83;padding-bottom:2px;margin-top:16pt}table{border-collapse:collapse;width:100%;margin:6pt 0}th{background:#164E83;color:#fff;padding:4pt 5pt;border:1px solid #164E83;text-align:left}td{padding:3pt 5pt;border:1px solid #9aa9bb}small,.m{color:#555}</style></head><body>'+
+    '<h1>'+npEsc(d.title)+'</h1><p class="m">Period: <b>'+npEsc(d.period)+'</b> &nbsp;|&nbsp; Generated: '+d.generated+(d.filters.length?' &nbsp;|&nbsp; Filters: '+npEsc(d.filters.join(' | ')):'')+'<br>Source: icare.com.sa/new-file (non-CDM)'+(d.perf?' + performance report (PTID match)':'')+'</p>'+
+    '<h2>1. Summary — what was converted</h2>'+tb(['Indicator','Value'],npKpiRows(d))+
+    '<h2>2. Patient status of the converted cases</h2>'+tb(['Status','Cases','% of converted','Visited'],d.status.map(o=>[o.k,npNA(d,o.n),npNA(d,o.pct+'%'),o.visited]))+
+    '<h2>3. Services done for the visited patients (P/D)</h2>'+(d.perf?tb(['Service','Patients served','Planned (P)','Done (D)','% done'],d.svc.map(o=>[o.k,o.n,o.p,o.d,o.pct+'%'])):'<p>Load the performance report to include the services.</p>')+
+    '<h2>4. By doctor</h2>'+tb(npGrpHead,npGrpRows(d,d.groups.doctor))+'<h2>5. By city</h2>'+tb(npGrpHead,npGrpRows(d,d.groups.city))+'<h2>6. By project</h2>'+tb(npGrpHead,npGrpRows(d,d.groups.project))+
+    '<h2>7. Visited cases and the services done for each ('+d.cases.length+')</h2>'+tb(npCaseHead,npCaseRows(d))+
+    '<h2>Notes</h2><ul>'+d.notes.map(n=>'<li>'+npEsc(n)+'</li>').join('')+'</ul></body></html>';
+  let blob,ext='docx';try{if(!window.htmlDocx?.asBlob)throw Error('converter unavailable');blob=window.htmlDocx.asBlob(html,{orientation:'landscape',margins:{top:567,right:567,bottom:567,left:567}})}catch{blob=new Blob([html],{type:'application/msword;charset=utf-8'});ext='doc'}
+  npSave(blob,npRepName(d,ext));
+}
+function npRepPdf(){
+  const d=npRep(),{jsPDF}=window.jspdf,doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'}),W=doc.internal.pageSize.getWidth(),head={fillColor:[22,78,131],textColor:255},opt={styles:{fontSize:8,cellPadding:1.6},headStyles:head,alternateRowStyles:{fillColor:[243,247,251]}};
+  let y=18;doc.setFontSize(18);doc.setTextColor(11,31,58);doc.text(d.title,14,y);doc.setFontSize(9);doc.setTextColor(80);doc.text(`Period: ${d.period}   |   Generated: ${d.generated}${d.filters.length?'   |   '+d.filters.join(' | '):''}`,14,y+6);doc.text('Source: icare.com.sa/new-file (non-CDM)'+(d.perf?' + performance report (PTID match)':''),14,y+11);
+  const sec=(t,fn)=>{y=(doc.lastAutoTable?doc.lastAutoTable.finalY:y+14)+8;if(y>180){doc.addPage();y=16}doc.setFontSize(12);doc.setTextColor(22,78,131);doc.text(t,14,y);fn(y+3)};
+  doc.lastAutoTable=null;
+  sec('1. Summary - what was converted',s=>doc.autoTable({...opt,startY:s,head:[['Indicator','Value']],body:npKpiRows(d),columnStyles:{0:{cellWidth:110}},tableWidth:170}));
+  sec('2. Patient status of the converted cases',s=>doc.autoTable({...opt,startY:s,head:[['Status','Cases','% of converted','Visited']],body:d.status.map(o=>[o.k,npNA(d,o.n),npNA(d,o.pct+'%'),o.visited]),tableWidth:140}));
+  sec('3. Services done for the visited patients (P/D)',s=>d.perf?doc.autoTable({...opt,startY:s,head:[['Service','Patients served','Planned (P)','Done (D)','% done']],body:d.svc.map(o=>[o.k,o.n,o.p,o.d,o.pct+'%']),tableWidth:160}):(doc.text('Load the performance report to include the services.',14,s+4),doc.lastAutoTable={finalY:s+6}));
+  [['4. By doctor',d.groups.doctor],['5. By city',d.groups.city],['6. By project',d.groups.project]].forEach(([t,g])=>sec(t,s=>doc.autoTable({...opt,startY:s,head:[npGrpHead],body:npGrpRows(d,g),margin:{left:14,right:14}})));
+  doc.addPage();doc.lastAutoTable=null;y=14;doc.setFontSize(12);doc.setTextColor(22,78,131);doc.text(`7. Visited cases and the services done for each (${d.cases.length})`,14,y);
+  doc.autoTable({...opt,startY:y+3,head:[npCaseHead],body:npCaseRows(d),columnStyles:{7:{cellWidth:90}},margin:{left:14,right:14}});
+  y=doc.lastAutoTable.finalY+8;if(y>185){doc.addPage();y=16}doc.setFontSize(10);doc.setTextColor(60);d.notes.forEach(n=>{const l=doc.splitTextToSize('- '+n,W-28);doc.text(l,14,y);y+=l.length*4.5});
+  const pages=doc.getNumberOfPages();for(let p=1;p<=pages;p++){doc.setPage(p);doc.setFontSize(8);doc.setTextColor(120);doc.text(`Future Care - ${d.title} - page ${p}/${pages}`,14,doc.internal.pageSize.getHeight()-6)}
+  npSave(doc.output('blob'),npRepName(d,'pdf'));
+}
+function npRepExcel(){
+  const d=npRep(),wb=XLSX.utils.book_new(),HS={font:{name:'Aptos',sz:11,bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'164E83'}},alignment:{horizontal:'center',vertical:'center',wrapText:true}};
+  const sheet=(name,head,rows,widths)=>{const aoa=[[`Future Care - ${d.title} - ${name}`],['Period',d.period,'Generated',d.generated],['Filters',d.filters.join(' | ')||'None'],[],head,...rows],ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols']=(widths||head.map((h,i)=>({wch:i?14:34}))).map(w=>typeof w==='number'?{wch:w}:w);ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:Math.max(0,head.length-1)}}];if(ws.A1)ws.A1.s={font:{name:'Aptos',sz:14,bold:true,color:{rgb:'0B1F3A'}}};
+    head.forEach((_,c)=>{const cell=ws[XLSX.utils.encode_cell({r:4,c})];if(cell)cell.s=HS});ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:4,c:0},e:{r:4+rows.length,c:head.length-1}})};ws['!freeze']={xSplit:0,ySplit:5};XLSX.utils.book_append_sheet(wb,ws,name.slice(0,31))};
+  sheet('Summary',['Indicator','Value'],npKpiRows(d),[58,26]);
+  sheet('Status',['Status','Cases','% of converted','Visited'],d.status.map(o=>[o.k,npNA(d,o.n),npNA(d,o.pct),o.visited]));
+  if(d.perf)sheet('Services P-D',['Service','Patients served','Planned (P)','Done (D)','% done'],d.svc.map(o=>[o.k,o.n,o.p,o.d,o.pct]));
+  sheet('By Doctor',npGrpHead,npGrpRows(d,d.groups.doctor));sheet('By City',npGrpHead,npGrpRows(d,d.groups.city));sheet('By Project',npGrpHead,npGrpRows(d,d.groups.project));
+  sheet('Visited cases',[...npCaseHead.slice(0,8),'Total D','Total P',...NP_SVC.flatMap(k=>[k+' D',k+' P'])],d.cases.map(c=>[c.ptid,c.opened,c.doctor,c.project,c.city,c.status,c.visits,c.services,c.totD,c.totP,...NP_SVC.flatMap(k=>[c.svc[k]?c.svc[k].d:0,c.svc[k]?c.svc[k].p:0])]),[12,12,26,18,12,12,8,40,9,9]);
+  sheet('All converted cases',['PTID','Opened','Month','Doctor','Project','City','Company','Status','Referral','Visits','Visited','Total D','Total P'],d.all.map(c=>[c.ptid,c.opened,c.month,c.doctor,c.project,c.city,c.company,c.status,c.referral,c.visits,c.visited,c.totD,c.totP]),[12,12,10,26,18,12,22,12,9,8,8,9,9]);
+  sheet('Notes',['Note'],d.notes.map(n=>[n]),[140]);
+  npSave(new Blob([XLSX.write(wb,{type:'array',bookType:'xlsx'})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),npRepName(d,'xlsx'));
+}
+function npLoadPptx(){return window.PptxGenJS?Promise.resolve():new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';s.integrity='sha384-Cck14aA9cifjYolcnjebXRfWGkz5ltHMBiG4px/j8GS+xQcb7OhNQWZYyWjQ+UwQ';s.crossOrigin='anonymous';s.onload=res;s.onerror=()=>rej(Error('تعذّر تحميل مكتبة PowerPoint (تحقق من الاتصال)'));document.head.appendChild(s)})}
+async function npRepPpt(){
+  await npLoadPptx();const d=npRep(),P=new window.PptxGenJS();P.layout='LAYOUT_WIDE';P.title=d.title;
+  const NAVY='0B1F3A',BLUE='164E83',TEAL='0F766E',GREY='64748B',font='Calibri';
+  const slide=t=>{const s=P.addSlide();s.addShape(P.ShapeType.rect,{x:0,y:0,w:13.33,h:0.9,fill:{color:NAVY}});s.addText(t,{x:0.4,y:0.12,w:12.5,h:0.65,fontSize:24,bold:true,color:'FFFFFF',fontFace:font});s.addText(`${d.period}${d.filters.length?'  |  '+d.filters.join(' | '):''}`,{x:0.4,y:7.05,w:10,h:0.3,fontSize:10,color:GREY,fontFace:font});return s};
+  const tbl=(s,head,rows,o={})=>s.addTable([head.map(h=>({text:String(h),options:{bold:true,color:'FFFFFF',fill:{color:BLUE},fontSize:o.fs||11,align:'center'}})),...rows.map(r=>r.map((c,i)=>({text:String(c==null?'':c),options:{fontSize:o.fs||11,align:i?'center':'left'}})))],{x:o.x??0.4,y:o.y??1.15,w:o.w??12.5,colW:o.colW,border:{type:'solid',color:'CBD5E1',pt:0.5},fontFace:font,rowH:o.rowH||0.3});
+  const t=P.addSlide();t.background={color:NAVY};t.addText(d.title,{x:0.7,y:2.1,w:12,h:1.2,fontSize:44,bold:true,color:'FFFFFF',fontFace:font});t.addText(d.period,{x:0.7,y:3.3,w:12,h:0.6,fontSize:26,color:'7DD3C8',fontFace:font});t.addText(`Generated ${d.generated}${d.filters.length?'  |  '+d.filters.join(' | '):''}\nSource: icare.com.sa/new-file (non-CDM)${d.perf?' + performance report (PTID match)':''}`,{x:0.7,y:4.2,w:12,h:0.9,fontSize:14,color:'CBD5E1',fontFace:font});
+  // key figures
+  let s=slide('What was converted — key figures');const cards=[['Orders (reference)',d.K.orders,GREY],['Converted (files opened)',d.K.converted,TEAL],['Conversion rate',d.K.convRate+'%',BLUE],['Referral cases',d.K.referrals,'7C3AED'],['Active',d.status.find(o=>o.k==='Active')?.n??0,'16A34A'],['De-Active',d.status.find(o=>o.k==='De-Active')?.n??0,'DC2626'],['Traveler',npNA(d,d.status.find(o=>o.k==='Traveler')?.n??0),'D97706'],['Hospital',npNA(d,d.status.find(o=>o.k==='Hospital')?.n??0),'0891B2'],['Visited',d.K.visited+' ('+d.K.visitRate+'%)','2563EB'],['Not visited',d.K.notVisited,'EA580C'],['Services done (D)',npNA(d,d.K.servicesDone),TEAL],['Avg services / visited',npNA(d,d.K.avgServices),'7C3AED']];
+  cards.forEach(([l,v,c],i)=>{const x=0.4+(i%4)*3.15,y=1.2+Math.floor(i/4)*1.85;s.addShape(P.ShapeType.roundRect,{x,y,w:2.95,h:1.6,fill:{color:'F8FAFC'},line:{color:c,width:2},rectRadius:0.1});s.addText(String(v),{x,y:y+0.15,w:2.95,h:0.9,fontSize:30,bold:true,color:c,align:'center',fontFace:font});s.addText(l,{x,y:y+1.0,w:2.95,h:0.5,fontSize:13,color:'334155',align:'center',fontFace:font})});
+  // status
+  s=slide('Patient status of the converted cases');const st=d.status.filter(o=>o.n>0);tbl(s,['Status','Cases','% of converted','Visited'],d.status.map(o=>[o.k,npNA(d,o.n),npNA(d,o.pct+'%'),o.visited]),{w:6,x:0.4,colW:[2,1.3,1.5,1.2],rowH:0.4,fs:13});
+  if(st.length)s.addChart(P.charts.DOUGHNUT,[{name:'Status',labels:st.map(o=>o.k),values:st.map(o=>o.n)}],{x:6.8,y:1.1,w:6.1,h:5.6,showLegend:true,legendPos:'b',showPercent:true,dataLabelColor:'FFFFFF',chartColors:['16A34A','DC2626','D97706','0891B2','94A3B8'],legendFontSize:13});
+  // services
+  s=slide('Visited patients — services done (P/D)');if(d.perf&&d.svc.length){s.addChart(P.charts.BAR,[{name:'Planned (P)',labels:d.svc.map(o=>o.k),values:d.svc.map(o=>o.p)},{name:'Done (D)',labels:d.svc.map(o=>o.k),values:d.svc.map(o=>o.d)}],{x:0.4,y:1.1,w:7.6,h:5.7,barDir:'col',barGrouping:'clustered',chartColors:['94A3B8',TEAL],showLegend:true,legendPos:'b',showValue:true,dataLabelFontSize:10,catAxisLabelFontSize:11});tbl(s,['Service','Patients','P','D','%'],d.svc.map(o=>[o.k,o.n,o.p,o.d,o.pct+'%']),{x:8.2,w:4.7,colW:[1.5,0.9,0.7,0.7,0.9],fs:11,rowH:0.28})}else s.addText('Load the performance report in the dashboard to include the services.',{x:0.6,y:2,w:12,h:1,fontSize:20,color:GREY});
+  s.addText(`Visited: ${d.K.visited}   |   matched in report: ${d.K.matched}   |   no service done: ${npNA(d,d.K.visitedNoService)}`,{x:0.4,y:6.7,w:12.5,h:0.3,fontSize:12,color:'334155',fontFace:font});
+  // by doctor / city / project
+  [['By doctor',d.groups.doctor],['By city',d.groups.city],['By project',d.groups.project]].forEach(([tt,g])=>{s=slide(tt);tbl(s,npGrpHead,npGrpRows(d,g).slice(0,14),{colW:[3.6,1.2,1.1,1.2,1.2,1.2,1.1,1.4],fs:11,rowH:0.34})});
+  // cases (paged)
+  const per=11,maxS=6;for(let p=0;p<Math.min(maxS,Math.ceil(d.cases.length/per));p++){s=slide(`Visited cases and services done (${p*per+1}-${Math.min(d.cases.length,(p+1)*per)} of ${d.cases.length})`);tbl(s,['PTID','Opened','Doctor','Project','Status','Visits','Services done (D/P)','D'],d.cases.slice(p*per,(p+1)*per).map(c=>[c.ptid,c.opened,c.doctor,c.project,c.status,c.visits,c.services,c.totD]),{colW:[1.1,1.1,2.4,1.6,1.1,0.7,3.9,0.6],fs:10,rowH:0.42})}
+  if(d.cases.length>per*maxS){s=slide('More cases');s.addText(`${d.cases.length-per*maxS} more visited cases are listed in the Excel / Word / PDF report.`,{x:0.6,y:2,w:12,h:1,fontSize:20,color:GREY})}
+  s=slide('Notes');s.addText(d.notes.map(n=>({text:n,options:{bullet:true,breakLine:true}})),{x:0.6,y:1.3,w:12,h:5,fontSize:16,color:'334155',fontFace:font,valign:'top'});
+  npSave(await P.write({outputType:'blob'}),npRepName(d,'pptx'));
+}
+{const p=$('p-newpts');p&&p.addEventListener('click',async e=>{const id=e.target.id,fn={npRepWord,npRepPdf,npRepExcel,npRepPpt}[id];if(!fn)return;const b=e.target,t=b.textContent;b.disabled=true;b.textContent='⏳';try{await fn()}catch(x){alert('تعذّر إنشاء التقرير: '+(x&&x.message||x))}b.disabled=false;b.textContent=t})}
+{const st=document.createElement('style');st.textContent='.npRep{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px;border:1px dashed #94a3b8;border-radius:12px}.npRep b{font-size:13px}';document.head.appendChild(st)}
 
 })();
 </script></body></html>
