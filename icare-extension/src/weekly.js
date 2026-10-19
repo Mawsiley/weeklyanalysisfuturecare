@@ -169,7 +169,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if(msg && msg.type === 'FCW_GET_NEW'){
     if(!PAGE_ORIGINS.includes(from) && !fromExtensionPage(sender)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
-    chrome.storage.local.get('weeklyNew').then(({ weeklyNew: w }) => sendResponse(w ? { ok: true, rows: w.rows, months: w.months, total: w.total, how: w.how || '', at: w.at } : { ok: false, code: 'NO_LOCAL_COPY' }));
+    chrome.storage.local.get('weeklyNew').then(({ weeklyNew: w }) => sendResponse(w ? { ok: true, rows: w.rows, months: w.months, total: w.total, perf: w.perf || null, how: w.how || '', at: w.at } : { ok: false, code: 'NO_LOCAL_COPY' }));
     return true;
   }
   if(msg && msg.type === 'FCW_SYNC_REPORT'){
@@ -201,6 +201,33 @@ function compactNew(e){
     reg: cut(e.register_date, 25), cs: Number(e.csheet_count) || 0, pn: Number(e.prescription_count) || 0, dup: Number(e.mobile_dup_count) > 0 ? 1 : 0,
     vt: cut(e.dr_type, 30), act: e.patient_active == null ? '' : (e.patient_active ? 'Active' : 'De-Active') };
 }
+// Compact, identity-free performance data (status, services P/D, GP note) of the new patients, for the file-open months.
+// Used by the dashboard to explain every new case; names, mobiles and IDs are never included.
+const nzObj = o => { const r = {}; for(const [k, v] of Object.entries(o || {})) if(Number(v)) r[k] = Number(v); return r; };
+async function perfLite(months, ptids){
+  const fo = await icareGet('/performance-follow-up/filter-options');
+  const names = ((fo.options && fo.options.cities) || []).map(String).filter(a => Object.values(PERF_CITY_ALIASES).some(re => re.test(a)));
+  const out = {};
+  for(const month of months){
+    const m = out[month] = {};
+    for(const city of names){
+      const q = new URLSearchParams({ month, city }).toString();
+      const plan = await icareGet('/performance-follow-up/report-plan?' + q);
+      const ids = Array.isArray(plan.ids) ? plan.ids : [];
+      const chunks = [];
+      if(!ids.length) chunks.push(await icareGet('/performance-follow-up/report?' + q));
+      const size = Math.max(50, Math.min(Number(plan.chunk_max) || 200, 200));
+      for(let i = 0; i < ids.length; i += size) chunks.push(await icareGet('/performance-follow-up/report?' + q + '&ids=' + ids.slice(i, i + size).join(',')));
+      for(const j of chunks) for(const r of (j.rows || [])){
+        const id = String(r.patient_id ?? '');
+        if(!id || !ptids.has(id) || m[id]) continue;
+        const st = r.patient_status === 'De-Active' ? 'De-Active' : r.in_out === 'Hospital' ? 'Hospital' : r.in_out === 'Traveler' ? 'Traveler' : 'Active';
+        m[id] = { st, p: nzObj(r.plan), d: nzObj(r.done), gp: firstNote(r.notes && r.notes.gp).slice(0, 80), lv: String(r.last_visit || '').slice(0, 10), adm: Number(r.hospital_admissions) || 0, doc: String(r.doctor_name || '').slice(0, 80), city: String(r.city || '').slice(0, 20) };
+      }
+    }
+  }
+  return out;
+}
 async function fetchNewFiles(){
   const now = new Date(), prev = ymOf(new Date(now.getFullYear(), now.getMonth() - 1, 1)), cur = ymOf(now);
   // orders created up to two months before the previous month can still be opened in it, so fetch from 3 months back
@@ -217,13 +244,16 @@ async function fetchNewFiles(){
     }
     // a file belongs to the month its file was OPENED (File Open Time); an order not opened yet belongs to its creation month
     const keep = rows.filter(x => { const m = monthOfDate(x.reg) || monthOfDate(x.cr); return m >= prev && m <= cur; });
-    return { ok: true, months: [prev, cur], total: keep.length, rows: keep, fetchedAt: new Date().toISOString() };
+    // performance data of the same months for the new patients (a failure here must not lose the new-patients list)
+    let perf = null, perfCode = '';
+    try{ perf = await perfLite([prev, cur], new Set(keep.map(x => String(x.ptid)))); }catch(e){ perfCode = e.code || 'NETWORK'; }
+    return { ok: true, months: [prev, cur], total: keep.length, rows: keep, perf, perfCode, fetchedAt: new Date().toISOString() };
   } catch(e){
     return { ok: false, code: e.code || 'NETWORK' };
   }
 }
 async function recordNew(n, how){
-  await chrome.storage.local.set({ weeklyNew: { rows: n.rows, months: n.months, total: n.total, how, date: localDate(), at: Date.now() } });
+  await chrome.storage.local.set({ weeklyNew: { rows: n.rows, months: n.months, total: n.total, perf: n.perf || null, how, date: localDate(), at: Date.now() } });
 }
 
 // ── Daily fetch + local copies ─────────────────────────────────────────────────────────────────────
