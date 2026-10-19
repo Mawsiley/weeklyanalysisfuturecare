@@ -192,6 +192,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 const ymOf = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 const ymdOf = d => ymOf(d) + '-' + String(d.getDate()).padStart(2, '0');
 const cut = (v, n) => (v == null ? '' : String(v).slice(0, n));
+const monthOfDate = v => { const t = String(v || ''); let m = t.match(/^(\d{4})-(\d{2})/); if(m) return m[1] + '-' + m[2]; m = t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/); return m ? m[3] + '-' + m[2].padStart(2, '0') : ''; };
 function compactNew(e){
   return { id: e.id, ptid: cut(e.patient_id, 20), doc: cut(e.doctor_name, 80), city: cut(e.city, 40), region: cut(e.location_region, 60), proj: cut(e.project, 60), cdm: cut(e.cdm_type, 20),
     comp: cut(e.company_name, 80), ins: cut(e.insurance_name, 80), st: cut(e.status_label, 60), la: cut(e.last_action, 80), lat: cut(e.last_action_time, 25),
@@ -202,7 +203,8 @@ function compactNew(e){
 }
 async function fetchNewFiles(){
   const now = new Date(), prev = ymOf(new Date(now.getFullYear(), now.getMonth() - 1, 1)), cur = ymOf(now);
-  const start = prev + '-01', end = ymdOf(new Date(now.getTime() + 86400000));
+  // orders created up to two months before the previous month can still be opened in it, so fetch from 3 months back
+  const start = ymdOf(new Date(now.getFullYear(), now.getMonth() - 3, 1)), end = ymdOf(new Date(now.getTime() + 86400000));
   try{
     const rows = [], seen = new Set(); let total = 0;
     for(let page = 1; page <= 40; page++){
@@ -213,7 +215,8 @@ async function fetchNewFiles(){
       for(const e of items){ const id = String(e.id); if(!seen.has(id)){ seen.add(id); rows.push(compactNew(e)); } }
       if(!items.length || (total && rows.length >= total)) break;
     }
-    const keep = rows.filter(x => !x.cr || String(x.cr).slice(0, 7) >= prev); // previous + current month only
+    // a file belongs to the month its file was OPENED (File Open Time); an order not opened yet belongs to its creation month
+    const keep = rows.filter(x => { const m = monthOfDate(x.reg) || monthOfDate(x.cr); return m >= prev && m <= cur; });
     return { ok: true, months: [prev, cur], total: keep.length, rows: keep, fetchedAt: new Date().toISOString() };
   } catch(e){
     return { ok: false, code: e.code || 'NETWORK' };

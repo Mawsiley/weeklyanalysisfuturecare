@@ -23,18 +23,21 @@ const row = id => { const k = id % 3, c = Object.keys(cities).find(x => cities[x
     plan: { dr: 2 }, done: { Dr: k === 0 ? 0 : k === 1 ? 1 : 2 }, notes: { gp: k === 0 && id > 10 ? 'refused' : '' } }; };
 // synthetic new-file orders: this month, last month, and one from 3 months ago (must be dropped)
 const ymdLocal = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-const nowD = new Date(), curStart = ymdLocal(new Date(nowD.getFullYear(), nowD.getMonth(), 1)), prevStart = ymdLocal(new Date(nowD.getFullYear(), nowD.getMonth() - 1, 5)), oldStart = ymdLocal(new Date(nowD.getFullYear(), nowD.getMonth() - 3, 5));
+const nowD = new Date(), curStart = ymdLocal(new Date(nowD.getFullYear(), nowD.getMonth(), 1)), prevStart = ymdLocal(new Date(nowD.getFullYear(), nowD.getMonth() - 1, 5)), oldStart = ymdLocal(new Date(nowD.getFullYear(), nowD.getMonth() - 4, 5)), twoAgo = ymdLocal(new Date(nowD.getFullYear(), nowD.getMonth() - 2, 5));
 const newItems = [
   { id: 1, patient_id: 501, patient_name: 'SECRET NAME', mobile: '0500000000', pid: '1000000000', city: 'Jeddah', doctor_name: 'Dr A', company_name: 'Co', status_label: 'Open', created_at: curStart + ' 09:00:00', register_date: curStart, csheet_count: 2 },
   { id: 2, patient_id: 502, patient_name: 'SECRET 2', mobile: '0500000001', city: 'Makkah', doctor_name: 'Dr B', status_label: 'New', created_at: prevStart + ' 10:00:00', csheet_count: 0, mobile_dup_count: 1 },
   { id: 3, patient_id: 503, patient_name: 'OLD', city: 'Jeddah', doctor_name: 'Dr A', status_label: 'Open', created_at: oldStart + ' 10:00:00' },
+  // created two months ago but its file was OPENED last month → belongs to last month (kept); one never opened → dropped
+  { id: 4, patient_id: 504, patient_name: 'LATE OPEN', city: 'Jeddah', doctor_name: 'Dr A', status_label: 'Open', created_at: twoAgo + ' 10:00:00', register_date: prevStart, csheet_count: 1 },
+  { id: 5, patient_id: 505, patient_name: 'NEVER OPENED', city: 'Jeddah', doctor_name: 'Dr A', status_label: 'New', created_at: twoAgo + ' 10:00:00' },
 ];
 let newCalls = 0;
 const fakeFetch = async url => {
   apiCalls++;
   if (failApi) return { ok: false, status: 500, json: async () => ({}) };
   const u = new URL(url), p = u.pathname, city = u.searchParams.get('city'); let body;
-  if (p.endsWith('/new-file')) { newCalls++; const pg = Number(u.searchParams.get('page') || 1); assert.strictEqual(u.searchParams.get('cdm_siss'), 'non_cdm'); assert.strictEqual(u.searchParams.get('page_size'), '500'); assert.ok(/^\d{4}-\d{2}-01$/.test(u.searchParams.get('start')), 'starts at the 1st of last month'); return { ok: true, status: 200, json: async () => ({ items: pg === 1 ? newItems : [], total: newItems.length }) }; }
+  if (p.endsWith('/new-file')) { newCalls++; const pg = Number(u.searchParams.get('page') || 1); assert.strictEqual(u.searchParams.get('cdm_siss'), 'non_cdm'); assert.strictEqual(u.searchParams.get('page_size'), '500'); assert.ok(/^\d{4}-\d{2}-01$/.test(u.searchParams.get('start')), 'starts at the 1st, 3 months back (orders created earlier can be opened last month)'); return { ok: true, status: 200, json: async () => ({ items: pg === 1 ? newItems : [], total: newItems.length }) }; }
   if (p.endsWith('/filter-options')) body = { options: { cities: Object.keys(cities) } };
   else if (p.endsWith('/report-plan')) body = { ids: cities[city] || [], chunk_max: 200 };
   else body = { rows: (u.searchParams.get('ids') || '').split(',').filter(Boolean).map(Number).map(row) };
@@ -76,9 +79,9 @@ const localDate = () => { const d = new Date(); return new Date(d.getTime() - d.
   assert.strictEqual(store.local.weeklyReport.how, 'auto');
   const nw = store.local.weeklyNew;
   assert.ok(nw && nw.how === 'auto' && nw.date === localDate(), 'new patients fetched with the daily run');
-  assert.strictEqual(nw.rows.length, 2, 'only previous + current month kept (the 3-month-old order is dropped)');
+  assert.strictEqual(nw.rows.length, 3, 'files belong to their OPEN month: kept = opened this/last month, or unopened orders created this/last month');
   assert.ok(!JSON.stringify(nw.rows).match(/SECRET|0500000|1000000000/), 'no patient name, mobile or national ID is stored');
-  assert.deepStrictEqual(nw.rows.map(x => x.ptid).sort(), ['501', '502']);
+  assert.deepStrictEqual(nw.rows.map(x => x.ptid).sort(), ['501', '502', '504']);
   assert.strictEqual(nw.rows.find(x => x.ptid === '502').dup, 1);
   const callsAfterAuto = apiCalls;
 
@@ -97,10 +100,10 @@ const localDate = () => { const d = new Date(); return new Date(d.getTime() - d.
 
   // new patients on demand + local copy for the page
   const fn = await send({ type: 'FCW_FETCH_NEW' }, SITE);
-  assert.ok(fn && fn.ok && fn.rows.length === 2 && fn.months.length === 2, 'manual new-patients fetch');
+  assert.ok(fn && fn.ok && fn.rows.length === 3 && fn.months.length === 2, 'manual new-patients fetch');
   assert.strictEqual(store.local.weeklyNew.how, 'manual');
   const gn = await send({ type: 'FCW_GET_NEW' }, SITE);
-  assert.ok(gn && gn.ok && gn.rows.length === 2, 'site gets the local new-patients copy');
+  assert.ok(gn && gn.ok && gn.rows.length === 3, 'site gets the local new-patients copy');
   assert.strictEqual((await send({ type: 'FCW_GET_NEW' }, 'https://evil.example/')).code, 'FORBIDDEN_ORIGIN');
   assert.strictEqual((await send({ type: 'FCW_FETCH_NEW' }, 'https://evil.example/')).code, 'FORBIDDEN_ORIGIN');
   // the site can load the local copy; other origins cannot
