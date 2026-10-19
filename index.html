@@ -1058,7 +1058,7 @@ setupNotify();markNowDuty();
    Data: the extension reads the page's own API (daily + on demand, saved locally) or a CSV/Excel exported from the page.
    Privacy: names, mobile numbers, national IDs and nationality are never read or kept — only PTID and analysis fields. */
 const npOp=r=>!!npDate(r.reg);
-const npState={rows:[],src:'',at:0,view:'both',doctor:'',city:'',project:'',msg:'',busy:false,ext:null,auto:false};
+const npState={cmpStatus:'',rows:[],src:'',at:0,view:'both',doctor:'',city:'',project:'',msg:'',busy:false,ext:null,auto:false};
 const npYm=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 const npMonths=()=>{const n=new Date();return{prev:npYm(new Date(n.getFullYear(),n.getMonth()-1,1)),cur:npYm(n)}};
 function npDate(v){const t=txt(v);if(!t)return'';let m=t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;m=t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;if(/^\d{5}(\.\d+)?$/.test(t)){const d=new Date(Date.UTC(1899,11,30)+Number(t)*864e5);return d.toISOString().slice(0,10)}return''}
@@ -1105,6 +1105,35 @@ function npTable(title,groups,showVisit=true){
   return`<div class="card"><h3>${title}</h3>${table(['',L.prev+' — فُتح ملفهم',showVisit?'زاروا':'',L.cur+' — فُتح ملفهم',showVisit?'زاروا':'','الفرق'].filter((h,i)=>showVisit||(i!==2&&i!==4)),groups.slice(0,40).map(g=>`<tr><td class="name">${esc(g.key)}</td><td><b>${g.p}</b> ${ord(g.po)}</td>${showVisit?`<td>${g.pv} <small>${npPct(g.pv,g.p)}</small></td>`:''}<td><b>${g.c}</b> ${ord(g.co)}</td>${showVisit?`<td>${g.cv} <small>${npPct(g.cv,g.c)}</small></td>`:''}<td>${npDelta(g.p,g.c)}</td></tr>`))}</div>`;
 }
 const npLabels=()=>{const {prev,cur}=npMonths();return{prev:`السابق ${prev}`,cur:`الحالي ${cur}`}};
+/* ---- compare with the performance report (PTID) ---- */
+const NP_SVC=['DR','NU','PT','LAB','IV','SPE','Dialysis','Speech','ABA','RT','OT','VAC','Vaccination','V. Call'];
+const npPtid=v=>String(v==null?'':v).replace(/\D/g,'');
+const npNum=(x,k)=>num(String(pick(x.raw,k)).replace(/[^\d.-]/g,''));
+function npPerfStatus(x){if(!x)return'غير موجود في تقرير الأداء';if(x.deactive)return'De-Active';const t=norm(x.status);return t.includes('hospital')?'Hospital':t.includes('travel')?'Traveler':'Active'}
+function npSvcOf(x){const o={};NP_SVC.forEach(k=>{const p=npNum(x,k+' P'),d=npNum(x,k+' D');if(p||d)o[k]={p,d}});return o}
+const npSvcText=o=>Object.entries(o).map(([k,v])=>k+' '+v.p+'/'+v.d).join(' · ');
+function npCompare(ro){
+  const {prev,cur}=npMonths(),idx=new Map;[...rows,...deactiveRows].forEach(x=>idx.set(npPtid(x.id),x));
+  const items=ro.map(r=>{const x=idx.get(npPtid(r.ptid))||null,svc=x?npSvcOf(x):{};return{r,x,st:npPerfStatus(x),svc,month:npMonthOf(r),totP:Object.values(svc).reduce((a,v)=>a+v.p,0),totD:Object.values(svc).reduce((a,v)=>a+v.d,0)}});
+  const STS=['Active','Hospital','Traveler','De-Active','غير موجود في تقرير الأداء'],by={};
+  STS.forEach(k=>by[k]={p:0,c:0,pv:0,cv:0});
+  items.forEach(i=>{const o=by[i.st];if(i.month===prev){o.p++;if(i.r.cs>0)o.pv++}else if(i.month===cur){o.c++;if(i.r.cs>0)o.cv++}});
+  const agg={};NP_SVC.forEach(k=>agg[k]={n:0,p:0,d:0});
+  items.filter(i=>i.x).forEach(i=>Object.entries(i.svc).forEach(([k,v])=>{const a=agg[k];if(v.p>0)a.n++;a.p+=v.p;a.d+=v.d}));
+  return{items,by,STS,agg,matched:items.filter(i=>i.x).length,hasPerf:rows.length+deactiveRows.length>0};
+}
+function npCompareCard(cmp){
+  const {prev,cur}=npMonths(),L=npLabels();
+  if(!cmp.hasPerf)return'<div class="card"><h3>مقارنة مع تقرير الأداء (PTID)</h3><div class="npNote">حمّل تقرير الأداء (أو اجلبه من iCare في الصفحة الرئيسية) لمعرفة حالة المرضى الجدد: مسافر / في المستشفى / De-Active، وخدماتهم بصيغة P/D.</div></div>';
+  const st=cmp.STS.filter(k=>cmp.by[k].p+cmp.by[k].c>0),stRows=st.map(k=>{const o=cmp.by[k],bad=k==='Hospital'||k==='Traveler';return'<tr><td class="name">'+(bad?'<b>'+esc(k)+'</b>':esc(k))+'</td><td>'+o.p+' <small>'+npPct(o.p,cmp.items.filter(i=>i.month===prev).length)+'</small></td><td>'+o.pv+'</td><td>'+o.c+' <small>'+npPct(o.c,cmp.items.filter(i=>i.month===cur).length)+'</small></td><td>'+o.cv+'</td></tr>'}),
+    svcRows=NP_SVC.filter(k=>cmp.agg[k].p+cmp.agg[k].d>0).map(k=>{const a=cmp.agg[k];return'<tr><td class="name">'+esc(k)+'</td><td>'+a.n+'</td><td><b>'+a.p+' / '+a.d+'</b></td><td>'+npPct(a.d,a.p)+'</td></tr>'}),
+    list=cmp.items.filter(i=>!npState.cmpStatus||i.st===npState.cmpStatus).sort((a,b)=>{const w=i=>i.st==='Hospital'||i.st==='Traveler'?0:i.x?(i.totP?2:1):3;return w(a)-w(b)||(a.r.cs>0)-(b.r.cs>0)}).slice(0,200),
+    miss=cmp.items.length-cmp.matched;
+  return'<div class="card"><h3>مقارنة مع تقرير الأداء — حالة المريض والخدمات (P/D)</h3><div class="npNote" style="margin:0 0 8px">يُطابَق كل ملف مفتوح بـ PTID مع تقرير الأداء المحمَّل: <b>'+cmp.matched+'</b> مطابق'+(miss?'، و<b>'+miss+'</b> غير موجود في التقرير (مدينة/شهر خارج التقرير أو لم يظهر بعد)':'')+'. صيغة الخدمة P/D = المخطط / المنفذ.</div>'+
+    '<div class="grid2"><div>'+table(['حالة المريض (في الأداء)',L.prev+' — ملفات','زاروا',L.cur+' — ملفات','زاروا'],stRows)+'</div><div>'+table(['الخدمة','مرضى لديهم خطة','P / D','% منفذ'],svcRows.length?svcRows:['<tr><td colspan="4">لا توجد خدمات مخططة للمطابَقين.</td></tr>'])+'</div></div>'+
+    '<div class="npBar" style="margin-top:10px"><b>المرضى الجدد وخدماتهم</b><select id="npCmpStatus"><option value="">كل الحالات</option>'+cmp.STS.map(k=>'<option '+(npState.cmpStatus===k?'selected':'')+'>'+esc(k)+'</option>').join('')+'</select><small class="npOrd">الأهم أولاً: مسافر/مستشفى ← بلا خطة ← بلا زيارة (أول '+list.length+')</small></div>'+
+    table(['PTID','الشهر','الحالة (أداء)','Project','الطبيب (جديد) ← (أداء)','زيارات CSheet','الخدمات P/D','إجمالي P/D'],list.map(i=>'<tr><td>'+esc(i.r.ptid)+'</td><td>'+esc(i.month)+'</td><td>'+(i.st==='Hospital'||i.st==='Traveler'?'<span class="badge warn">'+esc(i.st)+'</span>':i.st==='Active'?'<span class="badge good">Active</span>':i.st==='De-Active'?'<span class="badge bad">De-Active</span>':'<span class="muted">'+esc(i.st)+'</span>')+'</td><td>'+esc(i.r.proj||'—')+'</td><td class="name">'+esc(i.r.doc||'—')+(i.x&&i.x.doctor&&i.x.doctor!==i.r.doc?' ← '+esc(i.x.doctor):'')+'</td><td>'+(i.r.cs>0?i.r.cs:'<span class="badge warn">0</span>')+'</td><td style="white-space:normal;min-width:180px">'+(i.x?(npSvcText(i.svc)||'<span class="muted">بلا خدمات مخططة</span>'):'—')+'</td><td>'+(i.x?'<b>'+i.totP+' / '+i.totD+'</b>':'—')+'</td></tr>'))+'</div>';
+}
 function renderNewPts(){
   const el=$('p-newpts');if(!el)return;
   const {prev,cur}=npMonths(),L=npLabels(),all=npState.rows.filter(r=>{const m=npMonthOf(r);return m===prev||m===cur}),rs=npRows(),pr=rs.filter(r=>npMonthOf(r)===prev),cr=rs.filter(r=>npMonthOf(r)===cur),ro=rs.filter(npOp);
@@ -1112,7 +1141,10 @@ function renderNewPts(){
   const ext=npState.ext,extTxt=ext==null?'⏳ التحقق من الإضافة…':ext.ok&&ext.newApi?`✅ الإضافة ${esc(ext.version)}${ext.hasToken?' — جلسة iCare نشطة':' — ⚠ سجّل الدخول في iCare'}`:'⚠ إضافة «FutureCare Weekly — iCare Reports & Tasks» 1.6.0+ غير مثبتة — يمكنك رفع ملف CSV/Excel مصدَّر من الصفحة';
   const row=(label,p,c,fmt=v=>v,inv)=>`<tr><td class="name">${label}</td><td>${fmt(p)}</td><td>${fmt(c)}</td><td>${typeof p==='number'&&typeof c==='number'?npDelta(+p.toFixed(1),+c.toFixed(1),inv):''}</td></tr>`;
   const pend=[...ro].filter(r=>!(r.cs>0)).map(r=>({r,d:npDays(r.cr,localToday())})).sort((a,b)=>(b.d??0)-(a.d??0)).slice(0,100);
-  const alerts=[];
+  const cmp=npCompare(ro),alerts=[];
+  if(cmp.hasPerf){const hv=cmp.items.filter(i=>i.st==='Hospital'||i.st==='Traveler');if(hv.length)alerts.push('✈️🏥 '+hv.length+' من المرضى الجدد حالتهم في تقرير الأداء مسافر/في المستشفى ('+hv.filter(i=>i.st==='Traveler').length+' مسافر، '+hv.filter(i=>i.st==='Hospital').length+' مستشفى) — '+hv.filter(i=>!(i.r.cs>0)).length+' منهم لم تتم زيارتهم');
+    const nop=cmp.items.filter(i=>i.x&&!i.x.deactive&&!i.totP&&!i.r.cs).length;if(nop)alerts.push('🗂 '+nop+' مريض جديد في تقرير الأداء بلا أي خدمة مخططة ولم تتم زيارته');
+    const nf=cmp.items.length-cmp.matched;if(nf)alerts.push('🔎 '+nf+' ملف مفتوح غير موجود في تقرير الأداء الحالي')}
   if(mc.pendingOld||mp.pendingOld)alerts.push(`⏳ مرضى جدد لم تتم زيارتهم منذ 3 أيام أو أكثر: ${mc.pendingOld} هذا الشهر و${mp.pendingOld} الشهر السابق`);
   const pj=npProjectData(ro,rs).filter(o=>o.pn+o.cn>0).slice(0,3);if(pj.length)alerts.push('📂 أكثر الـ Projects بلا زيارة: '+pj.map(o=>`${o.key} (${o.pn+o.cn})`).join('، '));
   const noAppr=cr.filter(r=>npOp(r)&&!r.appr).length;if(noAppr)alerts.push(`📄 ${noAppr} مريض جديد هذا الشهر بلا رقم موافقة`);
@@ -1130,6 +1162,7 @@ function renderNewPts(){
     row('لديهم رقم موافقة',mp.appr,mc.appr),row('لديهم موعد',mp.appt,mc.appt),row('محوّلون (Referral)',mp.ref,mc.ref),row('Active (Patient Active)',mp.actv,mc.actv),row('De-Active',mp.deact,mc.deact,v=>v,true),row('% De-Active',mp.total?mp.deact/mp.total*100:0,mc.total?mc.deact/mc.total*100:0,v=>v.toFixed(0)+'%',true),row('VIP / النخبة',mp.vip,mc.vip),row('طلبات بجوال مكرر',mp.dup,mc.dup,v=>v,true),row('متوسط أيام (إنشاء → فتح الملف)',mp.avgOpen,mc.avgOpen,v=>v==null?'—':v.toFixed(1),true)])}</div>
   <div class="card"><h3>الملفات المفتوحة يوميًا (حسب تاريخ فتح الملف)</h3><div style="height:260px"><canvas id="npChart"></canvas></div></div>
   ${npProjectCard(ro,rs)}
+  ${npCompareCard(cmp)}
   <div class="grid2">${npTable('حسب الطبيب',npGroup(ro,r=>r.doc,rs))}${npTable('حسب المدينة',npGroup(ro,r=>r.city,rs))}</div>
   <div class="grid2">${npTable('حسب الشركة / التأمين',npGroup(ro,r=>r.comp||r.ins,rs))}${npTable('حسب الحالة (Status)',npGroup(ro,r=>r.st,rs),false)}</div>
   <div class="grid2">${npTable('حسب حالة المريض: Active / De-Active',npGroup(ro,r=>r.act||'غير محدد',rs))}</div>
@@ -1150,6 +1183,12 @@ function npWorkbook(){
   grp('By Doctor',npGroup(ro,r=>r.doc,rs));grp('By City',npGroup(ro,r=>r.city,rs));grp('By Company',npGroup(ro,r=>r.comp||r.ins,rs));grp('By Status',npGroup(ro,r=>r.st,rs));grp('By Active-DeActive',npGroup(ro,r=>r.act||'Unknown',rs));
   add('Not visited by Project',[['Project',`${prev} opened`,`${prev} orders`,`${prev} not visited`,`${prev} % not visited`,`${cur} opened`,`${cur} orders`,`${cur} not visited`,`${cur} % not visited`,'Pending >= 3 days','Change (not visited)'],...npProjectData(ro,rs).map(o=>[o.key,o.pt,o.pord,o.pn,o.pt?Math.round(o.pn/o.pt*100):'',o.ct,o.cord,o.cn,o.ct?Math.round(o.cn/o.ct*100):'',o.pold+o.cold,o.cn-o.pn])]);
   add('Not visited',[['PTID','Project','Doctor','City','Created','File opened','Days since created','Status','Last action'],...ro.filter(r=>!(r.cs>0)).map(r=>[r.ptid,r.proj,r.doc,r.city,npDate(r.cr),npDate(r.reg),npDays(r.cr,localToday())??'',r.st,r.la])]);
+  const cmp=npCompare(ro);
+  if(cmp.hasPerf){
+    add('Compare with performance',[['PTID','Month','Status (performance)','Project','Doctor (new patients)','Doctor (performance)','City','CSheet visits','DR P','DR D',...NP_SVC.filter(k=>k!=='DR').flatMap(k=>[k+' P',k+' D']),'Total P','Total D'],...cmp.items.map(i=>[i.r.ptid,i.month,i.st,i.r.proj,i.r.doc,i.x?i.x.doctor:'',i.r.city,i.r.cs,...NP_SVC.flatMap(k=>[i.svc[k]?i.svc[k].p:0,i.svc[k]?i.svc[k].d:0]),i.totP,i.totD])]);
+    add('Status vs performance',[['Patient status (performance)',`${prev} files`,`${prev} visited`,`${cur} files`,`${cur} visited`],...cmp.STS.map(k=>[k,cmp.by[k].p,cmp.by[k].pv,cmp.by[k].c,cmp.by[k].cv])]);
+    add('Services P-D',[['Service','Patients with a plan','Planned (P)','Done (D)','% done'],...NP_SVC.filter(k=>cmp.agg[k].p+cmp.agg[k].d>0).map(k=>[k,cmp.agg[k].n,cmp.agg[k].p,cmp.agg[k].d,cmp.agg[k].p?Math.round(cmp.agg[k].d/cmp.agg[k].p*100):''])]);
+  }
   return wb;
 }
 const npAsk=(t,x,ms)=>window.fcIcare?window.fcIcare.ask(t,x||{},ms):Promise.resolve({ok:false,code:'NO_EXTENSION'});
@@ -1164,7 +1203,7 @@ function setupNewPts(){
   const hb=document.createElement('button');hb.className='btn ghost';hb.id='openNewPts';hb.textContent='🆕 المرضى الجدد';document.querySelector('header .actions').appendChild(hb);
   hb.onclick=()=>{$('drop').style.display='none';$('workspace').classList.add('show');$('status').className='status ok';$('status').textContent='تحليل المرضى الجدد — الشهر السابق والحالي';document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('active',x.id==='p-newpts'));renderNewPts();npCheckExt()};
   p.addEventListener('change',async e=>{const t=e.target;
-    if(t.id==='npDoctor'){npState.doctor=t.value;return renderNewPts()}if(t.id==='npCity'){npState.city=t.value;return renderNewPts()}if(t.id==='npProject'){npState.project=t.value;return renderNewPts()}if(t.id==='npView'){npState.view=t.value;return renderNewPts()}
+    if(t.id==='npDoctor'){npState.doctor=t.value;return renderNewPts()}if(t.id==='npCity'){npState.city=t.value;return renderNewPts()}if(t.id==='npProject'){npState.project=t.value;return renderNewPts()}if(t.id==='npCmpStatus'){npState.cmpStatus=t.value;return renderNewPts()}if(t.id==='npView'){npState.view=t.value;return renderNewPts()}
     if(t.id==='npFile'&&t.files[0]){try{const f=t.files[0],ab=await f.arrayBuffer(),wb=XLSX.read(ab,{type:'array',cellDates:true,dateNF:'yyyy-mm-dd'}),best=wb.SheetNames.map(n=>XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:'',raw:false,dateNF:'yyyy-mm-dd'})).sort((a,b)=>b.length-a.length)[0];npState.rows=npFromFile(best);npState.src='ملف: '+f.name;npState.at=Date.now();npState.msg=`✅ ${npState.rows.length} طلب — الشهران السابق والحالي فقط يُحلَّلان (لم تُقرأ أسماء أو جوالات أو هويات).`}catch(x){npState.msg=x.message}t.value='';renderNewPts()}});
   p.addEventListener('click',async e=>{const id=e.target.id;
     if(id==='npClearProject'){e.preventDefault();npState.project='';return renderNewPts()}
@@ -1178,6 +1217,7 @@ function setupNewPts(){
       renderNewPts()}});
 }
 setupNewPts();
+const renderBeforeNP=render;render=function(){const out=renderBeforeNP.apply(this,arguments);if($('p-newpts')?.classList.contains('active')&&npState.rows.length)renderNewPts();return out};
 
 /* Active / De-Active tab: ALL patients of the loaded performance file (the dashboard statistics themselves exclude De-Active).
    Total, Active, Hospital, Traveler and De-Active per doctor / city / company, share De-Active and the visits planned for them. */
