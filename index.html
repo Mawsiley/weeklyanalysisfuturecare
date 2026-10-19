@@ -1053,5 +1053,102 @@ const renderScheduleBeforeNow=renderSchedule;renderSchedule=function(){const o=r
 const renderBeforeNotify=render;render=function(){const out=renderBeforeNotify.apply(this,arguments);renderNotify();return out};
 setupNotify();markNowDuty();
 
+/* 🆕 New patients tab (icare.com.sa/new-file?cdm_siss=non_cdm): previous month vs current month only.
+   Data: the extension reads the page's own API (daily + on demand, saved locally) or a CSV/Excel exported from the page.
+   Privacy: names, mobile numbers, national IDs and nationality are never read or kept — only PTID and analysis fields. */
+const npState={rows:[],src:'',at:0,view:'both',doctor:'',city:'',msg:'',busy:false,ext:null,auto:false};
+const npYm=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+const npMonths=()=>{const n=new Date();return{prev:npYm(new Date(n.getFullYear(),n.getMonth()-1,1)),cur:npYm(n)}};
+function npDate(v){const t=txt(v);if(!t)return'';let m=t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;m=t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;if(/^\d{5}(\.\d+)?$/.test(t)){const d=new Date(Date.UTC(1899,11,30)+Number(t)*864e5);return d.toISOString().slice(0,10)}return''}
+const npDays=(a,b)=>{const x=npDate(a),y=npDate(b);if(!x||!y)return null;const d=Math.round((new Date(y+'T12:00:00')-new Date(x+'T12:00:00'))/864e5);return Number.isFinite(d)?d:null};
+/* uploaded file → compact rows (only whitelisted analysis columns; name / mobile / ID / nationality are never mapped) */
+const NP_COLS={ptid:['patient id','ptid'],doc:['doctor','doctor name'],city:['city'],region:['region'],comp:['company'],ins:['insurance'],st:['status'],cr:['created','created at'],reg:['file open time'],cs:['csheet visits'],appr:['approval#','approval no','approval'],app:['app date'],pt:['pt date'],lab:['lab date'],nur:['nursing date'],la:['last action'],lat:['last action time'],fa:['first action'],rs:['referral source'],ref:['referral'],vip:['vip'],cdm:['cdm'],proj:['project'],vt:['visit type'],act:['patient active'],dup:['same mobile orders'],pn:['progression notes'],grp:['group']};
+function npFromFile(aoa){
+  const hi=aoa.findIndex(r=>r.some(c=>/^(patient id|ptid)$/i.test(txt(c)))&&r.some(c=>/^(doctor|doctor name|created|status)$/i.test(txt(c))));
+  if(hi<0)throw Error('لم يتم العثور على أعمدة ملف المرضى الجدد (Patient ID و Doctor و Created …). صدّر الملف من صفحة new-file في iCare.');
+  const H=aoa[hi].map(c=>txt(c).toLowerCase()),idx={};for(const [k,names] of Object.entries(NP_COLS)){const i=H.findIndex(h=>names.includes(h));if(i>=0)idx[k]=i}
+  return aoa.slice(hi+1).filter(r=>r.some(Boolean)).map(r=>{const g=k=>idx[k]==null?'':txt(r[idx[k]]);return{ptid:g('ptid'),doc:g('doc'),city:g('city'),region:g('region'),comp:g('comp'),ins:g('ins'),st:g('st'),cr:g('cr'),reg:g('reg'),cs:num(g('cs')),appr:/^(1|true|yes)$/i.test(g('appr'))||(g('appr')&&!/^(0|false|no|-|—|#na)$/i.test(g('appr')))?1:0,app:g('app'),pt:g('pt'),lab:g('lab'),nur:g('nur'),la:g('la'),lat:g('lat'),fa:g('fa'),rs:g('rs'),ref:g('ref')||g('rs')?1:0,vip:/vip|نخبة/i.test(g('vip'))?1:0,cdm:g('cdm'),proj:g('proj'),vt:g('vt'),act:g('act'),dup:num(g('dup'))>0?1:0,pn:num(g('pn'))}}).filter(x=>x.ptid||x.cr);
+}
+function npRows(){const {prev,cur}=npMonths();return npState.rows.filter(r=>{const m=npDate(r.cr).slice(0,7);return(m===prev||m===cur)&&(!npState.doctor||(r.doc||'—')===npState.doctor)&&(!npState.city||(r.city||'—')===npState.city)})}
+const npMonthOf=r=>npDate(r.cr).slice(0,7);
+function npMetrics(rs){
+  const today=localToday(),opened=rs.filter(r=>npDate(r.reg)),visited=rs.filter(r=>r.cs>0),pending=rs.filter(r=>!(r.cs>0)),od=opened.map(r=>npDays(r.cr,r.reg)).filter(v=>v!=null&&v>=0);
+  return{total:rs.length,opened:opened.length,visited:visited.length,pending:pending.length,pendingOld:pending.filter(r=>{const d=npDays(r.cr,today);return d!=null&&d>=3}).length,appr:rs.filter(r=>r.appr).length,appt:rs.filter(r=>npDate(r.app)).length,ref:rs.filter(r=>r.ref).length,dup:rs.filter(r=>r.dup).length,vip:rs.filter(r=>r.vip).length,avgOpen:od.length?od.reduce((a,b)=>a+b,0)/od.length:null};
+}
+function npGroup(rs,keyFn){const {prev,cur}=npMonths(),m=new Map;rs.forEach(r=>{const k=keyFn(r)||'—',o=m.get(k)||{key:k,p:0,pv:0,c:0,cv:0};const mm=npMonthOf(r);if(mm===prev){o.p++;if(r.cs>0)o.pv++}else if(mm===cur){o.c++;if(r.cs>0)o.cv++}m.set(k,o)});return[...m.values()].sort((a,b)=>(b.c+b.p)-(a.c+a.p))}
+const npPct=(a,b)=>b?`${Math.round(a/b*100)}%`:'—';
+const npDelta=(p,c,inv)=>{const d=+(c-p).toFixed(1);if(!d)return'<span class="muted">0</span>';const good=inv?d<0:d>0;return`<span style="color:${good?'#16a34a':'#dc2626'};font-weight:800">${d>0?'+':''}${d}</span>`};
+function npTable(title,groups,showVisit=true){
+  return`<div class="card"><h3>${title}</h3>${table(['',npLabels().prev+' — جدد',showVisit?'زاروا':'',npLabels().cur+' — جدد',showVisit?'زاروا':'','الفرق'].filter((h,i)=>showVisit||(i!==2&&i!==4)),groups.slice(0,40).map(g=>`<tr><td class="name">${esc(g.key)}</td><td>${g.p}</td>${showVisit?`<td>${g.pv} <small>${npPct(g.pv,g.p)}</small></td>`:''}<td>${g.c}</td>${showVisit?`<td>${g.cv} <small>${npPct(g.cv,g.c)}</small></td>`:''}<td>${npDelta(g.p,g.c)}</td></tr>`))}</div>`;
+}
+const npLabels=()=>{const {prev,cur}=npMonths();return{prev:`السابق ${prev}`,cur:`الحالي ${cur}`}};
+function renderNewPts(){
+  const el=$('p-newpts');if(!el)return;
+  const {prev,cur}=npMonths(),L=npLabels(),all=npState.rows.filter(r=>{const m=npMonthOf(r);return m===prev||m===cur}),rs=npRows(),pr=rs.filter(r=>npMonthOf(r)===prev),cr=rs.filter(r=>npMonthOf(r)===cur);
+  const mp=npMetrics(pr),mc=npMetrics(cr),docs=[...new Set(all.map(r=>r.doc||'—'))].sort(),cities=[...new Set(all.map(r=>r.city||'—'))].sort();
+  const ext=npState.ext,extTxt=ext==null?'⏳ التحقق من الإضافة…':ext.ok&&ext.newApi?`✅ الإضافة ${esc(ext.version)}${ext.hasToken?' — جلسة iCare نشطة':' — ⚠ سجّل الدخول في iCare'}`:'⚠ إضافة «FutureCare Weekly — iCare Reports & Tasks» 1.6.0+ غير مثبتة — يمكنك رفع ملف CSV/Excel مصدَّر من الصفحة';
+  const row=(label,p,c,fmt=v=>v,inv)=>`<tr><td class="name">${label}</td><td>${fmt(p)}</td><td>${fmt(c)}</td><td>${typeof p==='number'&&typeof c==='number'?npDelta(+p.toFixed(1),+c.toFixed(1),inv):''}</td></tr>`;
+  const pend=[...rs].filter(r=>!(r.cs>0)).map(r=>({r,d:npDays(r.cr,localToday())})).sort((a,b)=>(b.d??0)-(a.d??0)).slice(0,100);
+  const alerts=[];
+  if(mc.pendingOld||mp.pendingOld)alerts.push(`⏳ مرضى جدد لم تتم زيارتهم منذ 3 أيام أو أكثر: ${mc.pendingOld} هذا الشهر و${mp.pendingOld} الشهر السابق`);
+  const noAppr=cr.filter(r=>!r.appr).length;if(noAppr)alerts.push(`📄 ${noAppr} مريض جديد هذا الشهر بلا رقم موافقة`);
+  if(mc.dup)alerts.push(`📱 ${mc.dup} طلب بنفس رقم الجوال لمريض آخر (مكرر محتمل) هذا الشهر`);
+  const topPend=npGroup(rs.filter(r=>!(r.cs>0)&&(npDays(r.cr,localToday())??0)>=3),r=>r.doc).slice(0,3);if(topPend.length)alerts.push('👨‍⚕️ أكثر الأطباء تأخراً في زيارة الجدد: '+topPend.map(g=>`${g.key} (${g.p+g.c})`).join('، '));
+  el.innerHTML=`<div class="npWrap">
+  <div class="npHead"><div><h2>🆕 المرضى الجدد — non-CDM</h2><p>تحليل الشهر السابق (${prev}) والحالي (${cur}) فقط من <a href="https://icare.com.sa/new-file?cdm_siss=non_cdm" target="_blank" rel="noopener">icare.com.sa/new-file?cdm_siss=non_cdm</a>. لا تُقرأ أو تُحفظ أسماء أو أرقام جوال أو هويات.</p></div><div class="npExt ${ext&&ext.ok&&ext.newApi?'ok':'bad'}">${extTxt}</div></div>
+  <div class="npBar"><button class="btn green" id="npFetch" ${npState.busy?'disabled':''}>📥 جلب من iCare</button><button class="btn white" id="npLocal">📦 النسخة المحلية</button><button class="btn white" id="npPick">📂 ملف CSV / Excel</button><input type="file" id="npFile" accept=".csv,.xls,.xlsx" hidden><button class="btn white" id="npExport" ${all.length?'':'disabled'}>⬇ تصدير Excel</button>
+    <select id="npDoctor"><option value="">كل الأطباء</option>${docs.map(d=>`<option ${npState.doctor===d?'selected':''}>${esc(d)}</option>`).join('')}</select><select id="npCity"><option value="">كل المدن</option>${cities.map(d=>`<option ${npState.city===d?'selected':''}>${esc(d)}</option>`).join('')}</select>
+    <select id="npView"><option value="both" ${npState.view==='both'?'selected':''}>الشهران</option><option value="prev" ${npState.view==='prev'?'selected':''}>${L.prev}</option><option value="cur" ${npState.view==='cur'?'selected':''}>${L.cur}</option></select></div>
+  <div class="npMsg" role="status">${esc(npState.msg||(npState.src?`المصدر: ${npState.src}${npState.at?' — '+new Date(npState.at).toLocaleString('ar-SA'):''}`:'اجلب البيانات من iCare أو حمّل ملفاً.'))}</div>
+  ${all.length?`${alerts.length?`<div class="npAlerts">${alerts.map(a=>`<div>${esc(a)}</div>`).join('')}</div>`:''}
+  <div class="card"><h3>مقارنة الشهرين</h3>${table(['المؤشر',L.prev,L.cur,'الفرق'],[
+    row('طلبات المرضى الجدد',mp.total,mc.total),row('فُتح الملف (File Open Time)',mp.opened,mc.opened),row('تمت زيارتهم (CSheet ≥ 1)',mp.visited,mc.visited),row('نسبة الزيارة',mp.total?mp.visited/mp.total*100:0,mc.total?mc.visited/mc.total*100:0,v=>v.toFixed(0)+'%'),row('لم تتم زيارتهم',mp.pending,mc.pending,v=>v,true),row('معلّقون ≥ 3 أيام بلا زيارة',mp.pendingOld,mc.pendingOld,v=>v,true),
+    row('لديهم رقم موافقة',mp.appr,mc.appr),row('لديهم موعد',mp.appt,mc.appt),row('محوّلون (Referral)',mp.ref,mc.ref),row('VIP / النخبة',mp.vip,mc.vip),row('طلبات بجوال مكرر',mp.dup,mc.dup,v=>v,true),row('متوسط أيام (إنشاء → فتح الملف)',mp.avgOpen,mc.avgOpen,v=>v==null?'—':v.toFixed(1),true)])}</div>
+  <div class="card"><h3>المرضى الجدد يوميًا</h3><div style="height:260px"><canvas id="npChart"></canvas></div></div>
+  <div class="grid2">${npTable('حسب الطبيب',npGroup(rs,r=>r.doc))}${npTable('حسب المدينة',npGroup(rs,r=>r.city))}</div>
+  <div class="grid2">${npTable('حسب الشركة / التأمين',npGroup(rs,r=>r.comp||r.ins))}${npTable('حسب الحالة (Status)',npGroup(rs,r=>r.st),false)}</div>
+  ${rs.some(r=>r.ref)?`<div class="grid2">${npTable('مصادر التحويل (Referral)',npGroup(rs.filter(r=>r.ref),r=>r.rs||'بدون مصدر'),false)}</div>`:''}
+  <div class="card"><h3>لم تتم زيارتهم بعد — الأقدم أولاً (${pend.length}${rs.filter(r=>!(r.cs>0)).length>100?' من '+rs.filter(r=>!(r.cs>0)).length:''})</h3>${table(['PTID','الطبيب','المدينة','تاريخ الإنشاء','أيام','الحالة','آخر إجراء'],pend.map(({r,d})=>`<tr><td>${esc(r.ptid)}</td><td class="name">${esc(r.doc||'—')}</td><td>${esc(r.city||'—')}</td><td>${esc(npDate(r.cr))}</td><td>${d==null?'—':`<span class="badge ${d>=7?'bad':d>=3?'warn':'good'}">${d}</span>`}</td><td>${esc(r.st||'—')}</td><td>${esc(r.la||'—')}</td></tr>`))}</div>`:'<div class="npEmpty">لا توجد بيانات للشهرين السابق والحالي بعد.</div>'}</div>`;
+  npChart(pr,cr);
+}
+function npChart(pr,cr){
+  const cv=$('npChart');if(!cv||typeof Chart==='undefined')return;if(charts.npChart)try{charts.npChart.destroy()}catch{}
+  const {prev,cur}=npMonths(),dim=31,series=rs=>{const a=Array(dim).fill(0);rs.forEach(r=>{const d=Number(npDate(r.cr).slice(8,10));if(d>=1&&d<=dim)a[d-1]++});return a},view=npState.view;
+  charts.npChart=new Chart(cv,{type:'line',data:{labels:Array.from({length:dim},(_,i)=>i+1),datasets:[...(view!=='cur'?[{label:prev,data:series(pr),borderColor:'#94a3b8',backgroundColor:'#94a3b833',tension:.3}]:[]),...(view!=='prev'?[{label:cur,data:series(cr),borderColor:'#0f766e',backgroundColor:'#0f766e33',tension:.3,fill:true}]:[])]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,ticks:{precision:0}}}}});
+}
+function npWorkbook(){
+  const {prev,cur}=npMonths(),rs=npRows(),pr=rs.filter(r=>npMonthOf(r)===prev),cr=rs.filter(r=>npMonthOf(r)===cur),mp=npMetrics(pr),mc=npMetrics(cr),wb=XLSX.utils.book_new(),add=(n,a)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(a),n);
+  const f=v=>v==null?'':+v.toFixed(1);
+  add('Summary',[['Metric',`Previous ${prev}`,`Current ${cur}`],['New-patient orders',mp.total,mc.total],['File opened',mp.opened,mc.opened],['Visited (CSheet >= 1)',mp.visited,mc.visited],['Visit rate %',mp.total?f(mp.visited/mp.total*100):'',mc.total?f(mc.visited/mc.total*100):''],['Not visited',mp.pending,mc.pending],['Pending >= 3 days without a visit',mp.pendingOld,mc.pendingOld],['With approval number',mp.appr,mc.appr],['With appointment',mp.appt,mc.appt],['Referrals',mp.ref,mc.ref],['VIP',mp.vip,mc.vip],['Orders with duplicate mobile',mp.dup,mc.dup],['Avg days created to file open',f(mp.avgOpen),f(mc.avgOpen)]]);
+  const grp=(n,g)=>add(n,[[n.replace('By ',''),`${prev} new`,`${prev} visited`,`${cur} new`,`${cur} visited`,'Change'],...g.map(x=>[x.key,x.p,x.pv,x.c,x.cv,x.c-x.p])]);
+  grp('By Doctor',npGroup(rs,r=>r.doc));grp('By City',npGroup(rs,r=>r.city));grp('By Company',npGroup(rs,r=>r.comp||r.ins));grp('By Status',npGroup(rs,r=>r.st));
+  add('Not visited',[['PTID','Doctor','City','Created','Days','Status','Last action'],...rs.filter(r=>!(r.cs>0)).map(r=>[r.ptid,r.doc,r.city,npDate(r.cr),npDays(r.cr,localToday())??'',r.st,r.la])]);
+  return wb;
+}
+const npAsk=(t,x,ms)=>window.fcIcare?window.fcIcare.ask(t,x||{},ms):Promise.resolve({ok:false,code:'NO_EXTENSION'});
+async function npCheckExt(){npState.ext=await npAsk('STATUS');if($('p-newpts').classList.contains('active'))renderNewPts();if(!npState.rows.length&&npState.ext.ok&&npState.ext.newAt)npLoadLocal(true)}
+async function npLoadLocal(silent){const r=await npAsk('GET_NEW',{},30000);if(!r.ok){if(!silent){npState.msg='لا توجد نسخة محلية في الإضافة بعد — اضغط «جلب من iCare».';renderNewPts()}return}npState.rows=r.rows||[];npState.src='نسخة محلية من الإضافة'+(r.how==='auto'?' (جلب يومي تلقائي)':r.how==='manual'?' (جلب يدوي)':'');npState.at=r.at;npState.msg='';renderNewPts()}
+function setupNewPts(){
+  const tabs=$('tabs'),reportBtn=tabs.querySelector('[data-p="report"]'),b=document.createElement('button');b.className='tab';b.dataset.p='newpts';b.textContent='🆕 المرضى الجدد';tabs.insertBefore(b,reportBtn);
+  const p=document.createElement('div');p.className='panel';p.id='p-newpts';$('p-report').before(p);TAB_LABELS.newpts='المرضى الجدد';
+  const st=document.createElement('style');st.textContent='.npWrap h2{margin:0 0 4px}.npHead{display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap}.npHead p{margin:0;color:var(--muted,#64748b);max-width:760px}.npExt{padding:8px 12px;border-radius:10px;font-size:13px;align-self:flex-start}.npExt.ok{background:#dcfce7;color:#166534}.npExt.bad{background:#fef3c7;color:#92400e}.npBar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}.npBar select{padding:7px 10px;border:1px solid #cbd5e1;border-radius:10px;font:inherit}.npMsg{color:var(--muted,#64748b);font-size:13px;margin-bottom:10px}.npAlerts{display:grid;gap:6px;margin-bottom:12px}.npAlerts div{background:rgba(217,119,6,.13);border:1px solid rgba(217,119,6,.45);border-radius:10px;padding:8px 12px;font-size:13px}.npEmpty{padding:30px;text-align:center;color:var(--muted,#64748b)}.npWrap .card{margin-bottom:14px}.npWrap small{color:var(--muted,#64748b)}.npWrap table{min-width:0}.npWrap .grid2{grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr))}.npWrap .grid2>*,.npWrap .card{min-width:0}.npWrap .tablewrap{max-height:50vh}body.dark .npBar select{background:#0f172a;color:#e2e8f0;border-color:#334155}';document.head.appendChild(st);
+  tabs.addEventListener('click',e=>{if(e.target.closest('.tab')?.dataset.p==='newpts'){renderNewPts();npCheckExt()}});
+  // header shortcut: opens the tab even before a performance report is loaded
+  const hb=document.createElement('button');hb.className='btn ghost';hb.id='openNewPts';hb.textContent='🆕 المرضى الجدد';document.querySelector('header .actions').appendChild(hb);
+  hb.onclick=()=>{$('drop').style.display='none';$('workspace').classList.add('show');$('status').className='status ok';$('status').textContent='تحليل المرضى الجدد — الشهر السابق والحالي';document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('active',x.id==='p-newpts'));renderNewPts();npCheckExt()};
+  p.addEventListener('change',async e=>{const t=e.target;
+    if(t.id==='npDoctor'){npState.doctor=t.value;return renderNewPts()}if(t.id==='npCity'){npState.city=t.value;return renderNewPts()}if(t.id==='npView'){npState.view=t.value;return renderNewPts()}
+    if(t.id==='npFile'&&t.files[0]){try{const f=t.files[0],ab=await f.arrayBuffer(),wb=XLSX.read(ab,{type:'array',cellDates:true,dateNF:'yyyy-mm-dd'}),best=wb.SheetNames.map(n=>XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:'',raw:false,dateNF:'yyyy-mm-dd'})).sort((a,b)=>b.length-a.length)[0];npState.rows=npFromFile(best);npState.src='ملف: '+f.name;npState.at=Date.now();npState.msg=`✅ ${npState.rows.length} طلب — الشهران السابق والحالي فقط يُحلَّلان (لم تُقرأ أسماء أو جوالات أو هويات).`}catch(x){npState.msg=x.message}t.value='';renderNewPts()}});
+  p.addEventListener('click',async e=>{const id=e.target.id;
+    if(id==='npPick')return $('npFile').click();
+    if(id==='npLocal')return npLoadLocal(false);
+    if(id==='npExport'){XLSX.writeFile(npWorkbook(),`New_Patients_${npMonths().prev}_${npMonths().cur}.xlsx`);return}
+    if(id==='npFetch'){npState.busy=true;npState.msg='⏳ جارٍ جلب المرضى الجدد من iCare… قد يستغرق دقيقة.';renderNewPts();const r=await npAsk('FETCH_NEW',{},300000);npState.busy=false;
+      if(!r.ok){npState.msg=({NO_EXTENSION:'إضافة FutureCare Weekly غير مثبتة أو غير مفعّلة — ارفع ملفاً بدلاً من ذلك.',NO_TOKEN:'لا توجد جلسة iCare — افتح iCare وسجّل الدخول ثم أعد المحاولة.',TOKEN_EXPIRED:'انتهت جلسة iCare — سجّل الدخول من جديد.'}[r.code])||('تعذّر الجلب: '+r.code)}
+      else{npState.rows=r.rows||[];npState.src='جُلب الآن من iCare';npState.at=Date.now();npState.msg=`✅ ${npState.rows.length} طلب للشهرين ${r.months.join(' و ')}.`}
+      renderNewPts()}});
+}
+setupNewPts();
+
 })();
 </script></body></html>

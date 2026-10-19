@@ -110,8 +110,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if(msg && msg.type === 'FCW_STATUS'){
     if(!PAGE_ORIGINS.includes(from) && sender.id !== chrome.runtime.id) return;
-    Promise.all([getToken(), chrome.storage.local.get(['weeklyLocal', 'weeklyDaily'])]).then(([t, { weeklyLocal: w, weeklyDaily: d }]) => sendResponse({ ok: true, hasToken: !!t.token, tokenAt: t.at, version: chrome.runtime.getManifest().version, tasks: true, sentApi: 1,
-      localAt: w ? w.at : 0, localHow: (d && d.lastHow) || (w && w.how) || '' }));
+    Promise.all([getToken(), chrome.storage.local.get(['weeklyLocal', 'weeklyDaily', 'weeklyNew'])]).then(([t, { weeklyLocal: w, weeklyDaily: d, weeklyNew: nw }]) => sendResponse({ ok: true, hasToken: !!t.token, tokenAt: t.at, version: chrome.runtime.getManifest().version, tasks: true, sentApi: 1,
+      localAt: w ? w.at : 0, newAt: nw ? nw.at : 0, newApi: 1, localHow: (d && d.lastHow) || (w && w.how) || '' }));
     return true;
   }
   // The weekly site hands over its current report: the task window opens with it imported, for review.
@@ -161,6 +161,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
     return true;
   }
+  // New patients: fetch now (page or extension window) / the saved local copy.
+  if(msg && msg.type === 'FCW_FETCH_NEW'){
+    if(!PAGE_ORIGINS.includes(from) && !fromExtensionPage(sender)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
+    fetchNewFiles().then(async n => { if(n.ok) await recordNew(n, 'manual'); sendResponse(n); });
+    return true;
+  }
+  if(msg && msg.type === 'FCW_GET_NEW'){
+    if(!PAGE_ORIGINS.includes(from) && !fromExtensionPage(sender)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
+    chrome.storage.local.get('weeklyNew').then(({ weeklyNew: w }) => sendResponse(w ? { ok: true, rows: w.rows, months: w.months, total: w.total, how: w.how || '', at: w.at } : { ok: false, code: 'NO_LOCAL_COPY' }));
+    return true;
+  }
   if(msg && msg.type === 'FCW_SYNC_REPORT'){
     if(!PAGE_ORIGINS.includes(from)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
     const b64 = String(msg.b64 || '');
@@ -174,6 +185,43 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 });
+
+// ── New patients (icare.com.sa/new-file?cdm_siss=non_cdm) ────────────────────────────────────────────
+// Same call the page makes (GET /new-file with start/end and cdm_siss=non_cdm, 500 per page), limited to the previous
+// and the current month. Only analysis fields are kept (no name, mobile or national ID).
+const ymOf = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+const ymdOf = d => ymOf(d) + '-' + String(d.getDate()).padStart(2, '0');
+const cut = (v, n) => (v == null ? '' : String(v).slice(0, n));
+function compactNew(e){
+  return { id: e.id, ptid: cut(e.patient_id, 20), doc: cut(e.doctor_name, 80), city: cut(e.city, 40), region: cut(e.location_region, 60), proj: cut(e.project, 60), cdm: cut(e.cdm_type, 20),
+    comp: cut(e.company_name, 80), ins: cut(e.insurance_name, 80), st: cut(e.status_label, 60), la: cut(e.last_action, 80), lat: cut(e.last_action_time, 25),
+    cr: cut(e.created_at, 25), fa: cut(e.first_action, 25), vip: Number(e.top_vip) || 0, ref: e.is_referral ? 1 : 0, rs: cut(e.referral_source, 60),
+    appr: e.approval_no ? 1 : 0, app: cut(e.app_date, 25), pt: cut(e.pt_date, 25), lab: cut(e.lab_date, 25), nur: cut(e.nursing_date, 25), grp: cut(e.group_name, 60),
+    reg: cut(e.register_date, 25), cs: Number(e.csheet_count) || 0, pn: Number(e.prescription_count) || 0, dup: Number(e.mobile_dup_count) > 0 ? 1 : 0,
+    vt: cut(e.dr_type, 30), act: e.patient_active == null ? '' : (e.patient_active ? 'Active' : 'De-Active') };
+}
+async function fetchNewFiles(){
+  const now = new Date(), prev = ymOf(new Date(now.getFullYear(), now.getMonth() - 1, 1)), cur = ymOf(now);
+  const start = prev + '-01', end = ymdOf(new Date(now.getTime() + 86400000));
+  try{
+    const rows = [], seen = new Set(); let total = 0;
+    for(let page = 1; page <= 40; page++){
+      const q = new URLSearchParams({ page: String(page), page_size: '500', start, end, cdm_siss: 'non_cdm' }).toString();
+      const j = await icareGet('/new-file?' + q);
+      const items = Array.isArray(j.items) ? j.items : [];
+      total = Number(j.total) || total;
+      for(const e of items){ const id = String(e.id); if(!seen.has(id)){ seen.add(id); rows.push(compactNew(e)); } }
+      if(!items.length || (total && rows.length >= total)) break;
+    }
+    const keep = rows.filter(x => !x.cr || String(x.cr).slice(0, 7) >= prev); // previous + current month only
+    return { ok: true, months: [prev, cur], total: keep.length, rows: keep, fetchedAt: new Date().toISOString() };
+  } catch(e){
+    return { ok: false, code: e.code || 'NETWORK' };
+  }
+}
+async function recordNew(n, how){
+  await chrome.storage.local.set({ weeklyNew: { rows: n.rows, months: n.months, total: n.total, how, date: localDate(), at: Date.now() } });
+}
 
 // ── Daily fetch + local copies ─────────────────────────────────────────────────────────────────────
 // Once per day (needs an iCare session, so it also fires when an iCare tab provides the token) the current
@@ -207,20 +255,29 @@ async function recordFetch(r, how){
 let dailyRunning = false;
 async function dailyCheck(){
   if(dailyRunning) return;
-  const st = await chrome.storage.local.get(['weeklyAutoFetch', 'weeklyDaily']);
+  const st = await chrome.storage.local.get(['weeklyAutoFetch', 'weeklyDaily', 'weeklyNew']);
   if(st.weeklyAutoFetch === false) return;
   const d = st.weeklyDaily || {}, today = localDate();
-  if(d.lastDate === today) return;
+  const needPerf = d.lastDate !== today, needNew = !st.weeklyNew || st.weeklyNew.date !== today;
+  if(!needPerf && !needNew) return;
   if(d.lastErrorAt && Date.now() - Date.parse(d.lastErrorAt) < 55 * 60 * 1000) return; // do not hammer iCare after a failure
   const { token } = await getToken();
   if(!token) return; // waits for an iCare tab (the token arrives with it)
   dailyRunning = true;
   try{
-    const r = await fetchPerformance({ month: today.slice(0, 7), cities: Object.keys(PERF_CITY_ALIASES) });
-    if(r.ok && r.rows.length) await recordFetch(r, 'auto');
-    else await chrome.storage.local.set({ weeklyDaily: { ...d, lastError: r.ok ? 'EMPTY' : r.code, lastErrorAt: new Date().toISOString() } });
+    if(needPerf){
+      const r = await fetchPerformance({ month: today.slice(0, 7), cities: Object.keys(PERF_CITY_ALIASES) });
+      if(r.ok && r.rows.length) await recordFetch(r, 'auto');
+      else { await chrome.storage.local.set({ weeklyDaily: { ...d, lastError: r.ok ? 'EMPTY' : r.code, lastErrorAt: new Date().toISOString() } }); return; }
+    }
+    if(needNew){
+      const n = await fetchNewFiles();
+      if(n.ok) await recordNew(n, 'auto');
+      else { const { weeklyDaily: d2 = {} } = await chrome.storage.local.get('weeklyDaily'); await chrome.storage.local.set({ weeklyDaily: { ...d2, lastError: 'NEWFILES_' + n.code, lastErrorAt: new Date().toISOString() } }); }
+    }
   } catch(e){
-    await chrome.storage.local.set({ weeklyDaily: { ...d, lastError: 'NETWORK', lastErrorAt: new Date().toISOString() } });
+    const { weeklyDaily: d3 = {} } = await chrome.storage.local.get('weeklyDaily');
+    await chrome.storage.local.set({ weeklyDaily: { ...d3, lastError: 'NETWORK', lastErrorAt: new Date().toISOString() } });
   } finally { dailyRunning = false; }
 }
 if(chrome.alarms){

@@ -26,6 +26,10 @@
         reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_SYNC_REPORT', name: String(m.name || ''), b64: btoa(bin) }));
       } else if(m.type === 'GET_REPORT'){
         reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_GET_REPORT' }));
+      } else if(m.type === 'FETCH_NEW'){
+        reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_FETCH_NEW' }));
+      } else if(m.type === 'GET_NEW'){
+        reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_GET_NEW' }));
       } else if(m.type === 'SENT'){
         reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_SENT', ptids: (Array.isArray(m.ptids) ? m.ptids : []).slice(0, 5000).map(x => String(x).slice(0, 20)), month: String(m.month || '') }));
       } else if(m.type === 'SYNC_RULES'){
