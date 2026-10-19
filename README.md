@@ -83,3 +83,6 @@ Section ④ of the 🆕 tab builds one task per new patient from rules over the 
 
 ### New patients: PTID links and drill-down
 Every PTID in the 🆕 tab opens the patient in iCare (`https://icare.com.sa/patient-info?ptid=<PTID>`). Clicking any indicator chip or any row of the doctor / city / company / status / Active-De-Active / referral / Project / patient-status tables opens a "patients under the filter" list (with the explanation of each case and an Excel export); click again to close.
+
+### New patients: notes on not-visited patients
+Each not-visited patient gets a note (a classification from an editable list + free text) in the "Not visited" list and in the "patients under the filter" list. Notes are saved and synced with the task rules (`taskCfg.np.notes`), summarised by classification in 🗒 (click a row to list its patients), shown in the case explanation, exported in the Not visited sheet, and sent inside the task: `{NOTE}` in the message, or appended as "ملاحظة: ..." when the message has no `{NOTE}`. A custom task rule can target a note classification (or "with / without note").
