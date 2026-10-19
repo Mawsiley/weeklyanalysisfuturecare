@@ -199,7 +199,7 @@ function compactNew(e){
     cr: cut(e.created_at, 25), fa: cut(e.first_action, 25), vip: Number(e.top_vip) || 0, ref: e.is_referral ? 1 : 0, rs: cut(e.referral_source, 60),
     appr: e.approval_no ? 1 : 0, app: cut(e.app_date, 25), pt: cut(e.pt_date, 25), lab: cut(e.lab_date, 25), nur: cut(e.nursing_date, 25), grp: cut(e.group_name, 60),
     reg: cut(e.register_date, 25), cs: Number(e.csheet_count) || 0, pn: Number(e.prescription_count) || 0, dup: Number(e.mobile_dup_count) > 0 ? 1 : 0,
-    vt: cut(e.dr_type, 30), act: e.patient_active == null ? '' : (e.patient_active ? 'Active' : 'De-Active') };
+    vt: cut(e.dr_type, 30), rt: cut(e.record_type, 20), act: e.patient_active == null ? '' : (e.patient_active ? 'Active' : 'De-Active') };
 }
 // Compact, identity-free performance data (status, services P/D, GP note) of the new patients, for the file-open months.
 // Used by the dashboard to explain every new case; names, mobiles and IDs are never included.
