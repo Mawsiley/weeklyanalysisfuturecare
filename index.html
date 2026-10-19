@@ -1073,7 +1073,7 @@ function npRows(){const {prev,cur}=npMonths();return npState.rows.filter(r=>{con
 const npMonthOf=r=>npDate(r.cr).slice(0,7);
 function npMetrics(rs){
   const today=localToday(),opened=rs.filter(r=>npDate(r.reg)),visited=rs.filter(r=>r.cs>0),pending=rs.filter(r=>!(r.cs>0)),od=opened.map(r=>npDays(r.cr,r.reg)).filter(v=>v!=null&&v>=0);
-  return{total:rs.length,opened:opened.length,visited:visited.length,pending:pending.length,pendingOld:pending.filter(r=>{const d=npDays(r.cr,today);return d!=null&&d>=3}).length,appr:rs.filter(r=>r.appr).length,appt:rs.filter(r=>npDate(r.app)).length,ref:rs.filter(r=>r.ref).length,dup:rs.filter(r=>r.dup).length,vip:rs.filter(r=>r.vip).length,avgOpen:od.length?od.reduce((a,b)=>a+b,0)/od.length:null};
+  return{total:rs.length,opened:opened.length,visited:visited.length,pending:pending.length,pendingOld:pending.filter(r=>{const d=npDays(r.cr,today);return d!=null&&d>=3}).length,appr:rs.filter(r=>r.appr).length,appt:rs.filter(r=>npDate(r.app)).length,ref:rs.filter(r=>r.ref).length,dup:rs.filter(r=>r.dup).length,actv:rs.filter(r=>/^active$/i.test(r.act)).length,deact:rs.filter(r=>/^de-?active$/i.test(r.act)).length,vip:rs.filter(r=>r.vip).length,avgOpen:od.length?od.reduce((a,b)=>a+b,0)/od.length:null};
 }
 function npGroup(rs,keyFn){const {prev,cur}=npMonths(),m=new Map;rs.forEach(r=>{const k=keyFn(r)||'—',o=m.get(k)||{key:k,p:0,pv:0,c:0,cv:0};const mm=npMonthOf(r);if(mm===prev){o.p++;if(r.cs>0)o.pv++}else if(mm===cur){o.c++;if(r.cs>0)o.cv++}m.set(k,o)});return[...m.values()].sort((a,b)=>(b.c+b.p)-(a.c+a.p))}
 const npPct=(a,b)=>b?`${Math.round(a/b*100)}%`:'—';
@@ -1117,11 +1117,12 @@ function renderNewPts(){
   ${all.length?`${alerts.length?`<div class="npAlerts">${alerts.map(a=>`<div>${esc(a)}</div>`).join('')}</div>`:''}
   <div class="card"><h3>مقارنة الشهرين</h3>${table(['المؤشر',L.prev,L.cur,'الفرق'],[
     row('طلبات المرضى الجدد',mp.total,mc.total),row('فُتح الملف (File Open Time)',mp.opened,mc.opened),row('تمت زيارتهم (CSheet ≥ 1)',mp.visited,mc.visited),row('نسبة الزيارة',mp.total?mp.visited/mp.total*100:0,mc.total?mc.visited/mc.total*100:0,v=>v.toFixed(0)+'%'),row('لم تتم زيارتهم',mp.pending,mc.pending,v=>v,true),row('معلّقون ≥ 3 أيام بلا زيارة',mp.pendingOld,mc.pendingOld,v=>v,true),
-    row('لديهم رقم موافقة',mp.appr,mc.appr),row('لديهم موعد',mp.appt,mc.appt),row('محوّلون (Referral)',mp.ref,mc.ref),row('VIP / النخبة',mp.vip,mc.vip),row('طلبات بجوال مكرر',mp.dup,mc.dup,v=>v,true),row('متوسط أيام (إنشاء → فتح الملف)',mp.avgOpen,mc.avgOpen,v=>v==null?'—':v.toFixed(1),true)])}</div>
+    row('لديهم رقم موافقة',mp.appr,mc.appr),row('لديهم موعد',mp.appt,mc.appt),row('محوّلون (Referral)',mp.ref,mc.ref),row('Active (Patient Active)',mp.actv,mc.actv),row('De-Active',mp.deact,mc.deact,v=>v,true),row('% De-Active',mp.total?mp.deact/mp.total*100:0,mc.total?mc.deact/mc.total*100:0,v=>v.toFixed(0)+'%',true),row('VIP / النخبة',mp.vip,mc.vip),row('طلبات بجوال مكرر',mp.dup,mc.dup,v=>v,true),row('متوسط أيام (إنشاء → فتح الملف)',mp.avgOpen,mc.avgOpen,v=>v==null?'—':v.toFixed(1),true)])}</div>
   <div class="card"><h3>المرضى الجدد يوميًا</h3><div style="height:260px"><canvas id="npChart"></canvas></div></div>
   ${npProjectCard(rs)}
   <div class="grid2">${npTable('حسب الطبيب',npGroup(rs,r=>r.doc))}${npTable('حسب المدينة',npGroup(rs,r=>r.city))}</div>
   <div class="grid2">${npTable('حسب الشركة / التأمين',npGroup(rs,r=>r.comp||r.ins))}${npTable('حسب الحالة (Status)',npGroup(rs,r=>r.st),false)}</div>
+  <div class="grid2">${npTable('حسب حالة المريض: Active / De-Active',npGroup(rs,r=>r.act||'غير محدد'))}</div>
   ${rs.some(r=>r.ref)?`<div class="grid2">${npTable('مصادر التحويل (Referral)',npGroup(rs.filter(r=>r.ref),r=>r.rs||'بدون مصدر'),false)}</div>`:''}
   <div class="card"><h3>لم تتم زيارتهم بعد — الأقدم أولاً (${pend.length}${rs.filter(r=>!(r.cs>0)).length>100?' من '+rs.filter(r=>!(r.cs>0)).length:''})</h3>${table(['PTID','Project','الطبيب','المدينة','تاريخ الإنشاء','أيام','الحالة','آخر إجراء'],pend.map(({r,d})=>`<tr><td>${esc(r.ptid)}</td><td>${esc(r.proj||'—')}</td><td class="name">${esc(r.doc||'—')}</td><td>${esc(r.city||'—')}</td><td>${esc(npDate(r.cr))}</td><td>${d==null?'—':`<span class="badge ${d>=7?'bad':d>=3?'warn':'good'}">${d}</span>`}</td><td>${esc(r.st||'—')}</td><td>${esc(r.la||'—')}</td></tr>`))}</div>`:'<div class="npEmpty">لا توجد بيانات للشهرين السابق والحالي بعد.</div>'}</div>`;
   npChart(pr,cr);
@@ -1134,9 +1135,9 @@ function npChart(pr,cr){
 function npWorkbook(){
   const {prev,cur}=npMonths(),rs=npRows(),pr=rs.filter(r=>npMonthOf(r)===prev),cr=rs.filter(r=>npMonthOf(r)===cur),mp=npMetrics(pr),mc=npMetrics(cr),wb=XLSX.utils.book_new(),add=(n,a)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(a),n);
   const f=v=>v==null?'':+v.toFixed(1);
-  add('Summary',[['Metric',`Previous ${prev}`,`Current ${cur}`],['New-patient orders',mp.total,mc.total],['File opened',mp.opened,mc.opened],['Visited (CSheet >= 1)',mp.visited,mc.visited],['Visit rate %',mp.total?f(mp.visited/mp.total*100):'',mc.total?f(mc.visited/mc.total*100):''],['Not visited',mp.pending,mc.pending],['Pending >= 3 days without a visit',mp.pendingOld,mc.pendingOld],['With approval number',mp.appr,mc.appr],['With appointment',mp.appt,mc.appt],['Referrals',mp.ref,mc.ref],['VIP',mp.vip,mc.vip],['Orders with duplicate mobile',mp.dup,mc.dup],['Avg days created to file open',f(mp.avgOpen),f(mc.avgOpen)]]);
+  add('Summary',[['Metric',`Previous ${prev}`,`Current ${cur}`],['New-patient orders',mp.total,mc.total],['File opened',mp.opened,mc.opened],['Visited (CSheet >= 1)',mp.visited,mc.visited],['Visit rate %',mp.total?f(mp.visited/mp.total*100):'',mc.total?f(mc.visited/mc.total*100):''],['Not visited',mp.pending,mc.pending],['Pending >= 3 days without a visit',mp.pendingOld,mc.pendingOld],['With approval number',mp.appr,mc.appr],['With appointment',mp.appt,mc.appt],['Referrals',mp.ref,mc.ref],['VIP',mp.vip,mc.vip],['Active patients',mp.actv,mc.actv],['De-Active patients',mp.deact,mc.deact],['Orders with duplicate mobile',mp.dup,mc.dup],['Avg days created to file open',f(mp.avgOpen),f(mc.avgOpen)]]);
   const grp=(n,g)=>add(n,[[n.replace('By ',''),`${prev} new`,`${prev} visited`,`${cur} new`,`${cur} visited`,'Change'],...g.map(x=>[x.key,x.p,x.pv,x.c,x.cv,x.c-x.p])]);
-  grp('By Doctor',npGroup(rs,r=>r.doc));grp('By City',npGroup(rs,r=>r.city));grp('By Company',npGroup(rs,r=>r.comp||r.ins));grp('By Status',npGroup(rs,r=>r.st));
+  grp('By Doctor',npGroup(rs,r=>r.doc));grp('By City',npGroup(rs,r=>r.city));grp('By Company',npGroup(rs,r=>r.comp||r.ins));grp('By Status',npGroup(rs,r=>r.st));grp('By Active-DeActive',npGroup(rs,r=>r.act||'Unknown'));
   add('Not visited by Project',[['Project',`${prev} new`,`${prev} not visited`,`${prev} % not visited`,`${cur} new`,`${cur} not visited`,`${cur} % not visited`,'Pending >= 3 days','Change (not visited)'],...npProjectData(rs).map(o=>[o.key,o.pt,o.pn,o.pt?Math.round(o.pn/o.pt*100):'',o.ct,o.cn,o.ct?Math.round(o.cn/o.ct*100):'',o.po+o.co,o.cn-o.pn])]);
   add('Not visited',[['PTID','Project','Doctor','City','Created','Days','Status','Last action'],...rs.filter(r=>!(r.cs>0)).map(r=>[r.ptid,r.proj,r.doc,r.city,npDate(r.cr),npDays(r.cr,localToday())??'',r.st,r.la])]);
   return wb;
@@ -1167,6 +1168,48 @@ function setupNewPts(){
       renderNewPts()}});
 }
 setupNewPts();
+
+/* Active / De-Active tab: ALL patients of the loaded performance file (the dashboard statistics themselves exclude De-Active).
+   Total, Active, Hospital, Traveler and De-Active per doctor / city / company, share De-Active and the visits planned for them. */
+const adState={doctor:'',city:'',company:''};
+const adAll=()=>[...rows,...deactiveRows];
+function adClass(x){if(x.deactive)return'De-Active';const s=norm(x.status);return s.includes('hospital')?'Hospital':s.includes('travel')?'Traveler':'Active'}
+function adFiltered(){return adAll().filter(x=>(!adState.doctor||x.doctor===adState.doctor)&&(!adState.city||x.city===adState.city)&&(!adState.company||x.company===adState.company))}
+function adGroup(list,keyFn){const m=new Map;list.forEach(x=>{const k=keyFn(x)||'—',o=m.get(k)||{key:k,n:0,Active:0,Hospital:0,Traveler:0,'De-Active':0,dPlan:0,dDone:0},c=adClass(x);o.n++;o[c]++;if(c==='De-Active'){o.dPlan+=x.drP;o.dDone+=x.drD}m.set(k,o)});return[...m.values()].sort((a,b)=>b.n-a.n)}
+const adPct=(a,b)=>b?`${(a/b*100).toFixed(1)}%`:'—';
+function adTable(title,groups){
+  const t=groups.reduce((a,o)=>({n:a.n+o.n,Active:a.Active+o.Active,Hospital:a.Hospital+o.Hospital,Traveler:a.Traveler+o.Traveler,D:a.D+o['De-Active']}),{n:0,Active:0,Hospital:0,Traveler:0,D:0});
+  return`<div class="card"><h3>${title}</h3>${table(['','إجمالي المرضى','Active','Hospital','Traveler','De-Active','% De-Active','زيارات DR مخططة لهم'],[...groups.map(o=>`<tr><td class="name">${esc(o.key)}</td><td><b>${o.n}</b></td><td>${o.Active}</td><td>${o.Hospital}</td><td>${o.Traveler}</td><td>${o['De-Active']?`<span class="badge warn">${o['De-Active']}</span>`:0}</td><td><div class="adBar"><i style="width:${o.n?o['De-Active']/o.n*100:0}%"></i></div>${adPct(o['De-Active'],o.n)}</td><td>${o.dPlan}</td></tr>`),`<tr class="adTot"><td class="name">الإجمالي</td><td>${t.n}</td><td>${t.Active}</td><td>${t.Hospital}</td><td>${t.Traveler}</td><td>${t.D}</td><td>${adPct(t.D,t.n)}</td><td>${groups.reduce((a,o)=>a+o.dPlan,0)}</td></tr>`])}</div>`;
+}
+function renderActDeact(){
+  const el=$('p-actdeact');if(!el)return;
+  if(!rows.length&&!deactiveRows.length){el.innerHTML='<div class="adEmpty">حمّل تقرير الأداء (أو اجلبه من iCare) لتحليل عدد المرضى الكلي حسب Active / De-Active.</div>';return}
+  const all=adAll(),list=adFiltered(),by=adGroup(list,x=>x.doctor),cls=c=>list.filter(x=>adClass(x)===c).length;
+  const n=list.length,A=cls('Active'),H=cls('Hospital'),T=cls('Traveler'),D=cls('De-Active'),dl=list.filter(x=>x.deactive),dPlan=sum(dl,x=>x.drP),dDone=sum(dl,x=>x.drD);
+  const opts=(vals,cur)=>[...new Set(vals)].filter(Boolean).sort().map(v=>`<option ${cur===v?'selected':''}>${esc(v)}</option>`).join('');
+  el.innerHTML=`<div class="adWrap"><div class="adHead"><h2>Active / De-Active — عدد المرضى الكلي</h2><p>كل المرضى في الملف (${all.length}) بما فيهم De-Active المستبعدين من باقي الإحصاءات.</p></div>
+  <div class="adBar2"><select id="adDoctor"><option value="">كل الأطباء</option>${opts(all.map(x=>x.doctor),adState.doctor)}</select><select id="adCity"><option value="">كل المدن</option>${opts(all.map(x=>x.city),adState.city)}</select><select id="adCompany"><option value="">كل الشركات</option>${opts(all.map(x=>x.company),adState.company)}</select><button class="btn white" id="adExport">⬇ تصدير Excel</button></div>
+  <div class="kpis">${[['إجمالي المرضى',n,'#2563eb'],['Active',A,'#16a34a'],['Hospital',H,'#d97706'],['Traveler',T,'#7c3aed'],['De-Active',D,'#dc2626'],['% De-Active',adPct(D,n),'#64748b'],['زيارات DR مخططة لـ De-Active',dPlan,'#0f766e'],['المنفذ منها',dDone,'#06b6d4']].map(k=>`<div class="kpi" style="--c:${k[2]}"><span>${k[0]}</span><b>${k[1]}</b></div>`).join('')}</div>
+  <div class="grid2">${adTable('حسب الطبيب',by)}${adTable('حسب المدينة',adGroup(list,x=>x.city))}</div>
+  <div class="grid2">${adTable('حسب الشركة',adGroup(list,x=>x.company))}${adTable('حسب المجموعة / الفرع',adGroup(list,x=>x.group!=='Unknown'?x.group:x.branch))}</div></div>`;
+}
+function adWorkbook(){
+  const list=adFiltered(),wb=XLSX.utils.book_new(),H=['Key','Total patients','Active','Hospital','Traveler','De-Active','% De-Active','DR planned for De-Active','DR done for De-Active'];
+  const sheet=(name,g)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([H,...g.map(o=>[o.key,o.n,o.Active,o.Hospital,o.Traveler,o['De-Active'],o.n?+(o['De-Active']/o.n*100).toFixed(1):0,o.dPlan,o.dDone])]),name);
+  sheet('By Doctor',adGroup(list,x=>x.doctor));sheet('By City',adGroup(list,x=>x.city));sheet('By Company',adGroup(list,x=>x.company));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Status','Patients'],...['Active','Hospital','Traveler','De-Active'].map(c=>[c,list.filter(x=>adClass(x)===c).length]),['Total',list.length]]),'Summary');
+  return wb;
+}
+function setupActDeact(){
+  const tabs=$('tabs'),reportBtn=tabs.querySelector('[data-p="report"]'),b=document.createElement('button');b.className='tab';b.dataset.p='actdeact';b.textContent='Active / De-Active';tabs.insertBefore(b,reportBtn);
+  const p=document.createElement('div');p.className='panel';p.id='p-actdeact';$('p-report').before(p);TAB_LABELS.actdeact='Active / De-Active';
+  const st=document.createElement('style');st.textContent='.adWrap h2{margin:0 0 4px}.adHead p{margin:0 0 10px;color:var(--muted,#64748b)}.adBar2{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.adBar2 select{padding:7px 10px;border:1px solid #cbd5e1;border-radius:10px;font:inherit}.adBar{height:6px;background:rgba(220,38,38,.15);border-radius:4px;margin-bottom:3px;min-width:60px}.adBar i{display:block;height:100%;background:#dc2626;border-radius:4px}.adTot td{font-weight:900;background:rgba(15,118,110,.08)}.adEmpty{padding:30px;text-align:center;color:var(--muted,#64748b)}.adWrap table{min-width:0}.adWrap .grid2{grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}.adWrap .grid2>*,.adWrap .card{min-width:0}.adWrap .card{margin-bottom:14px}.adWrap .tablewrap{max-height:50vh}body.dark .adBar2 select{background:#0f172a;color:#e2e8f0;border-color:#334155}';document.head.appendChild(st);
+  tabs.addEventListener('click',e=>{if(e.target.closest('.tab')?.dataset.p==='actdeact')renderActDeact()});
+  p.addEventListener('change',e=>{const t=e.target;if(t.id==='adDoctor')adState.doctor=t.value;else if(t.id==='adCity')adState.city=t.value;else if(t.id==='adCompany')adState.company=t.value;else return;renderActDeact()});
+  p.addEventListener('click',e=>{if(e.target.id==='adExport')XLSX.writeFile(adWorkbook(),`Active_vs_DeActive_${localToday()}.xlsx`)});
+}
+setupActDeact();
+const renderBeforeActDeact=render;render=function(){const out=renderBeforeActDeact.apply(this,arguments);if($('p-actdeact')?.classList.contains('active'))renderActDeact();return out};
 
 })();
 </script></body></html>

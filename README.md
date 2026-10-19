@@ -41,6 +41,8 @@ Open it from **🗓 المناوبات** in the header (no performance file need
 
 Prepared by: Dr ALMAWSILEY ALSAYED
 
+- **Active / De-Active tab:** total patients of the loaded file (including De-Active, which every other statistic excludes) split into Active, Hospital, Traveler and De-Active, per doctor / city / company / group, with % De-Active, the DR visits planned for De-Active patients, filters and an Excel export. The new-patients tab also splits orders by Patient Active (Active / De-Active).
+
 ## Cloud sync (Firestore)
 
 The header button **☁️ ربط المزامنة** signs in with the team password and syncs app settings (duty schedule, leave, exceptions, doctor directory, staff list, CME plan) across devices through a Netlify Function and Firestore. Patient data is never uploaded. See `docs/db-schema.md`.
