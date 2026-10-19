@@ -1183,10 +1183,10 @@ function npWorkbook(){
   grp('By Doctor',npGroup(ro,r=>r.doc,rs));grp('By City',npGroup(ro,r=>r.city,rs));grp('By Company',npGroup(ro,r=>r.comp||r.ins,rs));grp('By Status',npGroup(ro,r=>r.st,rs));grp('By Active-DeActive',npGroup(ro,r=>r.act||'Unknown',rs));
   add('Not visited by Project',[['Project',`${prev} opened`,`${prev} orders`,`${prev} not visited`,`${prev} % not visited`,`${cur} opened`,`${cur} orders`,`${cur} not visited`,`${cur} % not visited`,'Pending >= 3 days','Change (not visited)'],...npProjectData(ro,rs).map(o=>[o.key,o.pt,o.pord,o.pn,o.pt?Math.round(o.pn/o.pt*100):'',o.ct,o.cord,o.cn,o.ct?Math.round(o.cn/o.ct*100):'',o.pold+o.cold,o.cn-o.pn])]);
   add('Not visited',[['PTID','Project','Doctor','City','Created','File opened','Days since created','Status','Last action'],...ro.filter(r=>!(r.cs>0)).map(r=>[r.ptid,r.proj,r.doc,r.city,npDate(r.cr),npDate(r.reg),npDays(r.cr,localToday())??'',r.st,r.la])]);
-  const cmp=npCompare(ro);
+  const cmp=npCompare(ro),stEn=k=>k==='غير موجود في تقرير الأداء'?'Not in performance report':k;
   if(cmp.hasPerf){
-    add('Compare with performance',[['PTID','Month','Status (performance)','Project','Doctor (new patients)','Doctor (performance)','City','CSheet visits','DR P','DR D',...NP_SVC.filter(k=>k!=='DR').flatMap(k=>[k+' P',k+' D']),'Total P','Total D'],...cmp.items.map(i=>[i.r.ptid,i.month,i.st,i.r.proj,i.r.doc,i.x?i.x.doctor:'',i.r.city,i.r.cs,...NP_SVC.flatMap(k=>[i.svc[k]?i.svc[k].p:0,i.svc[k]?i.svc[k].d:0]),i.totP,i.totD])]);
-    add('Status vs performance',[['Patient status (performance)',`${prev} files`,`${prev} visited`,`${cur} files`,`${cur} visited`],...cmp.STS.map(k=>[k,cmp.by[k].p,cmp.by[k].pv,cmp.by[k].c,cmp.by[k].cv])]);
+    add('Compare with performance',[['PTID','Month','Status (performance)','Project','Doctor (new patients)','Doctor (performance)','City','CSheet visits','DR P','DR D',...NP_SVC.filter(k=>k!=='DR').flatMap(k=>[k+' P',k+' D']),'Total P','Total D'],...cmp.items.map(i=>[i.r.ptid,i.month,stEn(i.st),i.r.proj,i.r.doc,i.x?i.x.doctor:'',i.r.city,i.r.cs,...NP_SVC.flatMap(k=>[i.svc[k]?i.svc[k].p:0,i.svc[k]?i.svc[k].d:0]),i.totP,i.totD])]);
+    add('Status vs performance',[['Patient status (performance)',`${prev} files`,`${prev} visited`,`${cur} files`,`${cur} visited`],...cmp.STS.map(k=>[stEn(k),cmp.by[k].p,cmp.by[k].pv,cmp.by[k].c,cmp.by[k].cv])]);
     add('Services P-D',[['Service','Patients with a plan','Planned (P)','Done (D)','% done'],...NP_SVC.filter(k=>cmp.agg[k].p+cmp.agg[k].d>0).map(k=>[k,cmp.agg[k].n,cmp.agg[k].p,cmp.agg[k].d,cmp.agg[k].p?Math.round(cmp.agg[k].d/cmp.agg[k].p*100):''])]);
   }
   return wb;
