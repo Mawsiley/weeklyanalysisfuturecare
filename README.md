@@ -80,3 +80,6 @@ The per-page mapping lives in `icare-connect.js` (`PAGES`, `SOURCES`).
 
 ### New patients: tasks by filter + automatic SABIC routing
 Section ④ of the 🆕 tab builds one task per new patient from rules over the page filters (month, doctor, city, Project, company, visit status, performance status), each with its own title/message (`{PTID} {CITY} {PROJECT} {COMPANY} {DOCTOR} {DAYS} {STATUS} {VISITS} {SERVICES} {SPECIALIST} {EXPLAIN}`). A new **SABIC** patient (company or Project) is routed automatically to the city's specialist - Jeddah/Makkah: ISLAM MAHMOUD MOHAMED AHMED, Yanbu: RAWAN YOUSIF MAHADI HASSAN (editable) - with an editable message. One task per case: a patient who already has a sent task in the extension history is never offered again. The list opens in the extension window; the run starts there. Rules are saved with the task rules (`taskCfg.np`) and synced.
+
+### New patients: PTID links and drill-down
+Every PTID in the 🆕 tab opens the patient in iCare (`https://icare.com.sa/patient-info?ptid=<PTID>`). Clicking any indicator chip or any row of the doctor / city / company / status / Active-De-Active / referral / Project / patient-status tables opens a "patients under the filter" list (with the explanation of each case and an Excel export); click again to close.
