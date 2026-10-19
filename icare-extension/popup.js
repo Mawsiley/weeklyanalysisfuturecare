@@ -1870,4 +1870,13 @@ async function takeAppImport() {
   switchToTab('quicktask');
   await loadImportFile(new File([bytes], p.name || 'report.xls', { lastModified: p.at }));
   addLog('📥 استُلم تقرير من التحليل الأسبوعي: ' + (p.name || '') + ' — راجع القاعدة والحالات ثم ابدأ التشغيل يدوياً', 'info');
+  // ⚡ أتمتة: طلب المستخدم من زر «أتمتة التاسكات» في التحليل الأسبوعي — لا يبدأ إلا بعد تأكيدك هنا
+  if (p.autostart) {
+    if (confirm('⚡ أتمتة التاسكات\n\nبدء التشغيل الآن لعناصر «' + (p.name || '') + '»؟\nسيُفتح التاسك في iCare تلقائياً لكل صف (يُتخطى ما أُرسل سابقاً حسب إعدادات التخطي).')) {
+      addLog('⚡ بدء التشغيل التلقائي بطلب من التحليل الأسبوعي', 'info');
+      await startRun('task', false);
+    } else {
+      addLog('أُلغيت الأتمتة — راجع الحالات ثم ابدأ يدوياً', 'info');
+    }
+  }
 }

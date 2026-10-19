@@ -86,3 +86,6 @@ Every PTID in the 🆕 tab opens the patient in iCare (`https://icare.com.sa/pat
 
 ### New patients: notes on not-visited patients
 Each not-visited patient gets a note (a classification from an editable list + free text) in the "Not visited" list and in the "patients under the filter" list. Notes are saved and synced with the task rules (`taskCfg.np.notes`), summarised by classification in 🗒 (click a row to list its patients), shown in the case explanation, exported in the Not visited sheet, and sent inside the task: `{NOTE}` in the message, or appended as "ملاحظة: ..." when the message has no `{NOTE}`. A custom task rule can target a note classification (or "with / without note").
+
+### New patients: tasks for the active filter + automation (extension 1.8.0)
+⚡ "Task for the active filter" (section ④): the cases of the active filter - page filters (month / doctor / city / Project) plus the open "patients under the filter" list - get a task with an editable recipient, title and message (`{NOTE}` carries the patient note). 📨 opens the extension window for review; ⚡ **Automation** opens it and, after you confirm inside the extension window, starts the run automatically (the extension's usual skip-already-sent settings apply). Both buttons also exist for the rules list. Automation needs extension 1.8.0+.

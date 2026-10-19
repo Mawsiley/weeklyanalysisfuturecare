@@ -18,7 +18,7 @@
         const bytes = new Uint8Array(m.buffer || new ArrayBuffer(0));
         let bin = '';
         for(let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-        reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_OPEN_TASKS', name: String(m.name || ''), b64: btoa(bin) }));
+        reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_OPEN_TASKS', name: String(m.name || ''), b64: btoa(bin), autostart: m.autostart === true }));
       } else if(m.type === 'SYNC_REPORT'){
         const bytes = new Uint8Array(m.buffer || new ArrayBuffer(0));
         let bin = '';

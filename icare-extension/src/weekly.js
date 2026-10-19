@@ -121,7 +121,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const name = String(msg.name || 'report.xls').replace(/\.html?$/i, '.xls').slice(0, 120);
     const b64 = String(msg.b64 || '');
     if(!b64 || b64.length > 40e6) { sendResponse({ ok: false, code: 'BAD_FILE' }); return; }
-    chrome.storage.local.set({ pendingAppImport: { name, b64, at: Date.now() } })
+    chrome.storage.local.set({ pendingAppImport: { name, b64, at: Date.now(), autostart: msg.autostart === true } })
       .then(() => chrome.tabs.create({ url: chrome.runtime.getURL('popup.html?full=1&fromApp=1') }))
       .then(() => sendResponse({ ok: true }), e => sendResponse({ ok: false, code: 'EXTENSION_ERROR', error: e.message }));
     return true;
