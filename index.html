@@ -1245,6 +1245,15 @@ function renderNewPts(){
   const noAppr=ro.filter(r=>!r.appr).length;if(noAppr)alerts.push(`📄 ${noAppr} مريض جديد في الفترة المعروضة بلا رقم موافقة`);
   if(mp.dup+mc.dup)alerts.push(`📱 ${mp.dup+mc.dup} طلب بنفس رقم الجوال لمريض آخر (مكرر محتمل) في الفترة المعروضة`);
   const topPend=npGroup(ro.filter(r=>!(r.cs>0)&&(npDays(r.cr,localToday())??0)>=3),r=>r.doc).slice(0,3);if(topPend.length)alerts.push('👨‍⚕️ أكثر الأطباء تأخراً في زيارة الجدد: '+topPend.map(g=>`${g.key} (${g.p+g.c})`).join('، '));
+  if(!document.getElementById('npSecCss')){const st=document.createElement('style');st.id='npSecCss';st.textContent='.npSec{margin:24px 0 8px;padding:7px 12px;background:rgba(15,118,110,.1);border-inline-start:4px solid #0f766e;border-radius:8px;font-size:16px;font-weight:800}.npFun .npChip small{display:block;opacity:.75;font-size:11px}';document.head.appendChild(st)}
+  const npSec=(n,t)=>'<div class="npSec">'+n+' '+t+'</div>';
+  const funnel=(()=>{const tot=ro.length,pc=(a,b)=>b?Math.round(a/b*100)+'%':'—',catOf=i=>i.x?i.st:(/^de-?active$/i.test(i.r.act)?'De-Active':/^active$/i.test(i.r.act)?'Active':'غير محدد'),its=cmp.items;
+    const vis=its.filter(i=>i.r.cs>0),nv=its.filter(i=>!(i.r.cs>0)),just=nv.filter(i=>['Hospital','Traveler','De-Active'].includes(i.st)||(!i.x&&npCash(i.r))),acute=nv.filter(i=>npIsAcute(i)&&!just.includes(i)),unj=nv.filter(i=>!just.includes(i)&&!acute.includes(i)),cnt=k=>its.filter(i=>catOf(i)===k).length,sab=nv.filter(i=>npSabic(i.r)).length;
+    const chip=(t,v,sub,c)=>'<div class="npChip" style="--c:'+c+'"><span>'+t+'</span><b>'+v+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</div>';
+    return'<div class="npChips npFun">'+chip('طلبات المرضى الجدد (مرجع)',rs.length,'',"#64748b")+chip('فُتح الملف = الأساس (100%)',tot,pc(tot,rs.length)+' من الطلبات',"#0f766e")+chip('تمت زيارتهم',vis.length,pc(vis.length,tot)+' من المفتوحة',"#16a34a")+chip('لم تتم زيارتهم',nv.length,pc(nv.length,tot)+' من المفتوحة',"#ea580c")+
+      chip('↳ مبرَّر (مستشفى/مسافر/De-Active/كاش)',just.length,pc(just.length,nv.length)+' من غير المزارين',"#0891b2")+chip('↳ بلا تبرير',unj.length,pc(unj.length,nv.length)+' من غير المزارين',unj.length?"#dc2626":"#16a34a")+(cmp.hasPerf?chip('↳ Acute (IV/LAB بلا زيارة)',acute.length,pc(acute.length,nv.length)+' من غير المزارين',"#be123c"):'')+
+      chip('Active',cnt('Active'),pc(cnt('Active'),tot),"#16a34a")+chip('De-Active',cnt('De-Active'),pc(cnt('De-Active'),tot),"#dc2626")+chip('في المستشفى',cnt('Hospital'),pc(cnt('Hospital'),tot),"#0891b2")+chip('مسافر',cnt('Traveler'),pc(cnt('Traveler'),tot),"#d97706")+
+      chip('SABIC لم يُزاروا',sab,pc(sab,nv.length)+' من غير المزارين',"#2563eb")+'</div>'})();
   el.innerHTML=`<div class="npWrap">
   <div class="npHead"><div><h2>🆕 المرضى الجدد — non-CDM</h2><p>تحليل الشهر السابق (${prev}) والحالي (${cur}) فقط من <a href="https://icare.com.sa/new-file?cdm_siss=non_cdm" target="_blank" rel="noopener">icare.com.sa/new-file?cdm_siss=non_cdm</a>. لا تُقرأ أو تُحفظ أسماء أو أرقام جوال أو هويات. الشهر = شهر تاريخ فتح الملف (File Open Time).</p></div><div class="npExt ${ext&&ext.ok&&ext.newApi?'ok':'bad'}">${extTxt}</div></div>
   <div class="npBar"><button class="btn green" id="npFetch" ${npState.busy?'disabled':''}>📥 جلب من iCare</button><button class="btn white" id="npLocal">📦 النسخة المحلية</button><button class="btn white" id="npPick">📂 ملف CSV / Excel</button><input type="file" id="npFile" accept=".csv,.xls,.xlsx" hidden><button class="btn white" id="npExport" ${all.length?'':'disabled'}>⬇ تصدير Excel</button><span class="npRep"><b>📑 تقرير الفترة:</b><button class="btn white" id="npRepWord" ${all.length?'':'disabled'}>📄 Word</button><button class="btn white" id="npRepPdf" ${all.length?'':'disabled'}>📕 PDF</button><button class="btn white" id="npRepExcel" ${all.length?'':'disabled'}>📗 Excel</button><button class="btn white" id="npRepPpt" ${all.length?'':'disabled'}>📽 PowerPoint</button></span>
@@ -1252,19 +1261,28 @@ function renderNewPts(){
     <select id="npProject"><option value="">كل الـ Projects</option>${projects.map(d=>`<option ${npState.project===d?'selected':''}>${esc(d)}</option>`).join('')}</select><select id="npView"><option value="both" ${npState.view==='both'?'selected':''}>الشهران</option><option value="prev" ${npState.view==='prev'?'selected':''}>${L.prev}</option><option value="cur" ${npState.view==='cur'?'selected':''}>${L.cur}</option></select></div>
   <div class="npMsg" role="status">${esc(npState.msg||(npState.src?`المصدر: ${npState.src}${npState.at?' — '+new Date(npState.at).toLocaleString('ar-SA'):''}`:'اجلب البيانات من iCare أو حمّل ملفاً.'))}</div>
   ${all.length?`<div class="npBase">📌 العدد الكلي = <b>الملفات المفتوحة (File Open Time)</b> وعليه تُحسب كل النسب: ${npBoth(mp.total,mc.total)}. <b>كل ملف يُنسَب إلى شهر تاريخ فتح ملفه</b>${npState.view==='prev'?' — المعروض: الملفات التي فُتحت في الشهر السابق فقط':npState.view==='cur'?' — المعروض: الملفات التي فُتحت في الشهر الحالي فقط':''}. طلبات المرضى الجدد (العدد الأكبر، للتوضيح فقط): ${npBoth(mp.orders,mc.orders,true)}.</div>${alerts.length?`<div class="npAlerts">${alerts.map(a=>`<div>${esc(a)}</div>`).join('')}</div>`:''}
+  ${npSec('①','الخلاصة والنسب — حسب الفلاتر والشهر المختار')}
+  ${funnel}
   <div class="card"><h3>${npState.view==='both'?'مقارنة الشهرين':npState.view==='prev'?'الشهر السابق ('+prev+')':'الشهر الحالي ('+cur+')'} — الأساس: الملفات المفتوحة (File Open Time)</h3>${table(['المؤشر',L.prev,L.cur,'الفرق'],[
     row('طلبات المرضى الجدد (العدد الأكبر — للتوضيح فقط)',mp.orders,mc.orders),row('<b>فُتح الملف (File Open Time) = العدد الكلي</b> — أساس النسب',mp.total,mc.total),row('طلبات لم يُفتح ملفها بعد',mp.notOpened,mc.notOpened,v=>v,true),row('نسبة فتح الملف من الطلبات',mp.orders?mp.total/mp.orders*100:0,mc.orders?mc.total/mc.orders*100:0,v=>v.toFixed(0)+'%'),row('تمت زيارتهم (CSheet ≥ 1)',mp.visited,mc.visited),row('نسبة الزيارة (من الملفات المفتوحة)',mp.total?mp.visited/mp.total*100:0,mc.total?mc.visited/mc.total*100:0,v=>v.toFixed(0)+'%'),row('لم تتم زيارتهم',mp.pending,mc.pending,v=>v,true),row('معلّقون ≥ 3 أيام بلا زيارة',mp.pendingOld,mc.pendingOld,v=>v,true),
     row('لديهم رقم موافقة',mp.appr,mc.appr),row('لديهم موعد',mp.appt,mc.appt),row('محوّلون (Referral)',mp.ref,mc.ref),row('Active (Patient Active)',mp.actv,mc.actv),row('De-Active',mp.deact,mc.deact,v=>v,true),row('% De-Active',mp.total?mp.deact/mp.total*100:0,mc.total?mc.deact/mc.total*100:0,v=>v.toFixed(0)+'%',true),row('VIP / النخبة',mp.vip,mc.vip),row('طلبات بجوال مكرر',mp.dup,mc.dup,v=>v,true),row('متوسط أيام (إنشاء → فتح الملف)',mp.avgOpen,mc.avgOpen,v=>v==null?'—':v.toFixed(1),true)])}</div>
-  ${npVisitedBox(cmp)}
-  <div class="card"><h3>الملفات المفتوحة يوميًا (حسب تاريخ فتح الملف)</h3><div style="height:260px"><canvas id="npChart"></canvas></div></div>
+  ${npSec('②','حالة المرضى: Active / De-Active / مستشفى / مسافر')}
+  <div class="grid2">${npTable('حسب حالة المريض: Active / De-Active',npGroup(ro,r=>r.act||'غير محدد',rs))}</div>
+  ${npSec('③','لم تتم زيارتهم — المطلوب عمله')}
   ${npProjectCard(ro,rs)}
-  ${npCompareCard(cmp)}
+  ${sabicCard()}
+  <div class="card"><h3>لم تتم زيارتهم بعد — الأقدم أولاً (${pend.length}${ro.filter(r=>!(r.cs>0)).length>100?' من '+ro.filter(r=>!(r.cs>0)).length:''})</h3>${table(['PTID','Project','الطبيب','المدينة','تاريخ الإنشاء','أيام','الحالة','آخر إجراء','التبرير (حالة المريض في الأداء)','النوع','المختص (SABIC)'],pend.map(({r,d})=>`<tr><td>${esc(r.ptid)}</td><td>${esc(r.proj||'—')}</td><td class="name">${esc(r.doc||'—')}</td><td>${esc(r.city||'—')}</td><td>${esc(npDate(r.cr))}</td><td>${d==null?'—':`<span class="badge ${d>=7?'bad':d>=3?'warn':'good'}">${d}</span>`}</td><td>${esc(r.st||'—')}</td><td>${esc(r.la||'—')}</td><td>${npJust(r)}</td><td>${npTypeCell(r)}</td><td>${npSpecCell(r)}</td></tr>`))}</div>
+  ${npSec('④','تمت زيارتهم والخدمات المنفذة')}
+  ${npVisitedBox(cmp)}
+  ${npSec('⑤','التحليل حسب الطبيب والمدينة والشركة والحالة والتحويل')}
   <div class="grid2">${npTable('حسب الطبيب',npGroup(ro,r=>r.doc,rs))}${npTable('حسب المدينة',npGroup(ro,r=>r.city,rs))}</div>
   <div class="grid2">${npTable('حسب الشركة / التأمين',npGroup(ro,r=>r.comp||r.ins,rs))}${npTable('حسب الحالة (Status)',npGroup(ro,r=>r.st,rs),false)}</div>
-  <div class="grid2">${npTable('حسب حالة المريض: Active / De-Active',npGroup(ro,r=>r.act||'غير محدد',rs))}</div>
   ${ro.some(r=>r.ref)?`<div class="grid2">${npTable('مصادر التحويل (Referral)',npGroup(ro.filter(r=>r.ref),r=>r.rs||'بدون مصدر',rs.filter(r=>r.ref)),false)}</div>`:''}
-  ${sabicCard()}
-  <div class="card"><h3>لم تتم زيارتهم بعد — الأقدم أولاً (${pend.length}${ro.filter(r=>!(r.cs>0)).length>100?' من '+ro.filter(r=>!(r.cs>0)).length:''})</h3>${table(['PTID','Project','الطبيب','المدينة','تاريخ الإنشاء','أيام','الحالة','آخر إجراء','التبرير (حالة المريض في الأداء)','النوع','المختص (SABIC)'],pend.map(({r,d})=>`<tr><td>${esc(r.ptid)}</td><td>${esc(r.proj||'—')}</td><td class="name">${esc(r.doc||'—')}</td><td>${esc(r.city||'—')}</td><td>${esc(npDate(r.cr))}</td><td>${d==null?'—':`<span class="badge ${d>=7?'bad':d>=3?'warn':'good'}">${d}</span>`}</td><td>${esc(r.st||'—')}</td><td>${esc(r.la||'—')}</td><td>${npJust(r)}</td><td>${npTypeCell(r)}</td><td>${npSpecCell(r)}</td></tr>`))}</div>`:'<div class="npEmpty">لا توجد بيانات للشهرين السابق والحالي بعد.</div>'}</div>`;
+  ${npSec('⑥','تفسير كل حالة — مقارنة مع تقرير الأداء (PTID)')}
+  ${npCompareCard(cmp)}
+  ${npSec('⑦','الحركة اليومية')}
+  <div class="card"><h3>الملفات المفتوحة يوميًا (حسب تاريخ فتح الملف)</h3><div style="height:260px"><canvas id="npChart"></canvas></div></div>
+  `:'<div class="npEmpty">لا توجد بيانات للشهرين السابق والحالي بعد.</div>'}</div>`;
   npChart(pr.filter(npOp),cr.filter(npOp));npApplyView();
 }
 function npChart(pr,cr){
