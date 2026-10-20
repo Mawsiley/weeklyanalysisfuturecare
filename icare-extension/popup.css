@@ -657,3 +657,15 @@ body.full-page .dash-table { max-height: 60vh; }
 .dash-notify.min .dash-notify-body { display: none; }
 .dash-rem { color: #c0392b; }
 .dash-tot td { font-weight: 700; background: #eef7f6; }
+
+/* dashboard status strip + sub-tabs */
+.dash-strip { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.dash-chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #eef2f1; color: #334155; border: 1px solid #d5e6e3; }
+.dash-chip.ok { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+.dash-chip.bad { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+.dash-subbar { display: flex; gap: 6px; margin: 8px 0; }
+.dash-subtab { flex: 1; border: 1px solid #cfdcd9; background: #fff; color: #1E4E4D; border-radius: 999px; padding: 6px 10px; font: inherit; font-weight: 600; cursor: pointer; }
+.dash-subtab.on { background: #1E4E4D; color: #fff; border-color: #1E4E4D; }
+.dash-subtab b { background: rgba(0,0,0,.15); border-radius: 10px; padding: 0 6px; margin-inline-start: 4px; font-size: 11px; }
+.dash-subpanel { display: none; }
+.dash-subpanel.on { display: block; }

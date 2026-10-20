@@ -31,7 +31,7 @@
   const num = v => { const n = Number(String(v ?? '').replace(/[^\d.-]/g, '')); return Number.isFinite(n) ? n : 0; };
   const txt = v => String(v ?? '').replace(/\s+/g, ' ').trim();
   const pct = (a, b) => b ? (a / b * 100).toFixed(1) + '%' : '—';
-  const S = { report: null, rows: [], cfg: {}, cfgAt: 0, reason: '', doctor: '', city: '', q: '', off: new Set(), busy: false, msg: '', sent: {}, showSent: false, daily: {}, autoFetch: true, hasToken: null, resume: null, run: null, notify: {} };
+  const S = { report: null, rows: [], cfg: {}, cfgAt: 0, reason: '', doctor: '', city: '', q: '', off: new Set(), busy: false, msg: '', sent: {}, showSent: false, daily: {}, autoFetch: true, hasToken: null, resume: null, run: null, notify: {}, sub: 'summary' };
   // Custom rules ("filter + message"): checked before the default GP Note rules; first match wins.
   const STATUS = {
     notdone: ['Not Done (DR P > 0 و DR D = 0)', x => x.p > 0 && x.d === 0],
@@ -194,6 +194,19 @@
       (snaps.length ? '<details class="dash-box"><summary>الاتجاه اليومي (نسخ محلية: ' + snaps.length + ' يوم)</summary><div class="dash-table"><table><thead><tr><th>اليوم</th><th>نشط</th><th>Plan</th><th>Done</th><th>إنجاز</th><th>Not Done</th><th>بلا Note</th></tr></thead><tbody>' +
         snaps.map(o => '<tr><td>' + esc(o.date) + '</td><td>' + o.n + '</td><td>' + o.plan + '</td><td>' + o.done + '</td><td>' + pct(o.done, o.plan) + '</td><td>' + o.nd + '</td><td>' + o.noNote + '</td></tr>').join('') + '</tbody></table></div></details>' : '');
   }
+  // Status strip: version, iCare session, last fetch, auto fetch, exactness of yesterday's figures - one glance, no scrolling.
+  function statusStrip() {
+    const dl = S.daily || {}, rep = S.report, yv = dl.yvisits, yd = localDateOf(Date.now() - 86400000), ver = (() => { try { return chrome.runtime.getManifest().version || ''; } catch (_) { return ''; } })();
+    const chip = (ok, t, title) => '<span class="dash-chip ' + (ok === true ? 'ok' : ok === false ? 'bad' : '') + '" title="' + esc(title || '') + '">' + esc(t) + '</span>';
+    const fresh = rep && localDateOf(rep.at) === localDate();
+    return '<div class="dash-strip">' + chip(null, 'v' + ver, 'إصدار الإضافة') +
+      chip(S.hasToken === null || S.hasToken === undefined ? null : !!S.hasToken, S.hasToken === false ? '🔐 جلسة iCare: غير نشطة' : S.hasToken ? '🔐 جلسة iCare: نشطة' : '🔐 جلسة iCare: …', 'الجلب يحتاج جلسة iCare نشطة') +
+      chip(rep ? !!fresh : false, rep ? '📥 آخر جلب: ' + (fresh ? 'اليوم ' + timeOf(rep.at) : localDateOf(rep.at)) : '📥 لا يوجد تقرير', 'آخر تقرير محفوظ محلياً') +
+      chip(S.autoFetch ? true : null, S.autoFetch ? '🔄 جلب يومي: مفعّل' : '🔄 جلب يومي: متوقف', 'جلب تلقائي مرة في اليوم') +
+      chip(yv && yv.date === yd ? true : false, yv && yv.date === yd ? '🔔 زيارات أمس: دقيقة' : '🔔 زيارات أمس: تقريبية', 'الدقيقة تُحسب من ملفات المرضى بعد كل جلب') +
+      (dl.lastError ? chip(false, '⛔ ' + (ERR_TXT[dl.lastError] || dl.lastError), 'خطأ آخر جلب') : '') + '</div>';
+  }
+  const subBar = n => '<div class="dash-subbar">' + [['summary', '📊 الملخص', ''], ['tasks', '📨 التاسكات', n]].map(([k, l, c]) => '<button class="dash-subtab ' + (S.sub === k ? 'on' : '') + '" data-dsub="' + k + '">' + l + (c !== '' ? ' <b>' + c + '</b>' : '') + '</button>').join('') + '</div>';
   const sentDay = e => { try { return new Date(e.at).toLocaleDateString('ar-SA', { day: 'numeric', month: 'numeric' }); } catch (_) { return ''; } };
   function render() {
     const el = $d('tab-dash'); if (!el) return;
@@ -209,20 +222,23 @@
         <button class="btn-sm" id="dashSite" title="موقع التحليل الأسبوعي بكل التبويبات والتقارير">🌐 الداشبورد الكامل</button></div>
       <label class="dash-auto"><input type="checkbox" id="dashAuto" ${S.autoFetch ? 'checked' : ''}> 🔄 جلب تلقائي مرة يومياً (ونسخة محلية)</label>
       ${S.msg ? `<div class="dash-msg">${esc(S.msg)}</div>` : ''}</div>`;
-    if (!S.rows.length) { el.innerHTML = head + alertsHtml(); return; }
+    if (!S.rows.length) { el.innerHTML = head + statusStrip() + alertsHtml(); return; }
     const sm = summary(), all = cases(), vis = visible(all), sel = vis.filter(c => !c.sent && !S.off.has(c.x.ptid)), sentN = all.filter(c => c.sent).length;
     const counts = {}; all.forEach(c => { counts[c.rule.id] = (counts[c.rule.id] || 0) + 1; });
     const cities = [...new Set(active().map(x => x.city).filter(Boolean))].sort(), docs = [...new Set(active().map(x => x.doctor).filter(Boolean))].sort();
-    el.innerHTML = head + notifyHtml() + alertsHtml() + `
+    const readyN = all.filter(c => !c.sent).length;
+    el.innerHTML = head + statusStrip() + `
       <div class="dash-filters"><select id="dashCityF"><option value="">كل المدن</option>${cities.map(c => `<option ${S.city === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
         <select id="dashDoctorF"><option value="">كل الأطباء</option>${docs.map(d => `<option ${S.doctor === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
       <div class="dash-kpis">
         <div><b>${sm.a.length}</b><span>مريض نشط</span></div><div><b>${sm.plan}</b><span>DR Plan</span></div>
         <div><b>${sm.done}</b><span>DR Done</span></div><div><b>${pct(sm.done, sm.plan)}</b><span>الإنجاز</span></div>
         <div><b>${sm.nd}</b><span>Not Done</span></div><div><b>${sm.deact}</b><span>Deactive مستبعد</span></div></div>
-      ${tablesHtml(sm)}
+      ${subBar(readyN)}
+      <div class="dash-subpanel ${S.sub === 'summary' ? 'on' : ''}" data-dsp="summary">${notifyHtml()}${alertsHtml()}${tablesHtml(sm)}
       <details class="dash-box"><summary>الأطباء (${sm.docs.length})</summary><div class="dash-table"><table><thead><tr><th>الطبيب</th><th>مرضى</th><th>Plan</th><th>Done</th><th>إنجاز</th><th>Not Done</th></tr></thead><tbody>
         ${sm.docs.map(o => `<tr><td>${esc(o.doctor)}</td><td>${o.n}</td><td>${o.plan}</td><td>${o.done}</td><td>${pct(o.done, o.plan)}</td><td>${o.nd}</td></tr>`).join('')}</tbody></table></div></details>
+      </div><div class="dash-subpanel ${S.sub === 'tasks' ? 'on' : ''}" data-dsp="tasks">
       <details class="dash-box" ${S.rulesOpen ? 'open' : ''} id="dashRulesBox"><summary>قواعد التاسكات (سبب الإرسال) — تتزامن مع موقع التحليل</summary>
         <div class="dash-sub">★ قواعد مخصصة — فلتر + رسالة خاصة (تُطبق قبل القواعد الافتراضية)</div>
         ${customs().map(c => `<div class="dash-rule dash-custom ${c.on === false ? 'off' : ''}" data-custom="${esc(c.id)}">
@@ -252,7 +268,7 @@
         ${vis.slice(0, 1000).map(c => `<tr class="${c.sent ? 'sent' : S.off.has(c.x.ptid) ? 'off' : ''}" title="${esc(c.message)}"><td>${c.sent ? `<span class="dash-sent-mark" title="${esc((c.sent.title || '') + ' → ' + (c.sent.employee || ''))}">✓ ${sentDay(c.sent)}</span>` : `<input type="checkbox" data-p="${esc(c.x.ptid)}" ${S.off.has(c.x.ptid) ? '' : 'checked'}>`}</td><td>${esc(c.x.ptid)}</td><td>${esc(c.x.doctor || '—')}</td><td>${c.x.p}/${c.x.d}</td><td>${esc(c.x.note || '—')}</td><td><b>${esc(c.employee)}</b></td><td>${esc(c.title)}</td></tr>`).join('') || '<tr><td colspan="7">لا توجد حالات تنطبق عليها القواعد المفعّلة.</td></tr>'}
       </tbody></table></div>
       <button class="btn-primary dash-go" id="dashPrepare" ${sel.length ? '' : 'disabled'}>⚡ تجهيز ${sel.length} تاسك في تبويب التاسك</button>
-      <div class="dash-hint">تُنقل القائمة إلى تبويب ⚡ تاسك (أسطر الرسالة تُدمج في سطر واحد)؛ هناك اضغط "تجربة" أو "تشغيل". كل حالة يُفتح لها تاسك مرة واحدة: بعد التشغيل تُسجل في سجل الإرسال وتظهر هنا «✓ أُرسل» ولا تُعرض للإرسال مرة أخرى (لإعادة الإرسال احذفها من السجل في تبويب 📋 سجل).</div>`;
+      <div class="dash-hint">تُنقل القائمة إلى تبويب ⚡ تاسك (أسطر الرسالة تُدمج في سطر واحد)؛ هناك اضغط "تجربة" أو "تشغيل". كل حالة يُفتح لها تاسك مرة واحدة: بعد التشغيل تُسجل في سجل الإرسال وتظهر هنا «✓ أُرسل» ولا تُعرض للإرسال مرة أخرى (لإعادة الإرسال احذفها من السجل في تبويب 📋 سجل).</div></div>`;
   }
 
   async function load() {
@@ -316,6 +332,8 @@
     p.addEventListener('toggle', e => { if (e.target.id === 'dashRulesBox') S.rulesOpen = e.target.open; }, true);
     p.addEventListener('click', async e => {
       const id = e.target.id;
+      const ds = e.target.closest('[data-dsub]');
+      if (ds) { S.sub = ds.dataset.dsub; p.querySelectorAll('.dash-subtab').forEach(b => b.classList.toggle('on', b === ds)); p.querySelectorAll('.dash-subpanel').forEach(d => d.classList.toggle('on', d.dataset.dsp === S.sub)); return; }
       const nf = e.target.closest('[data-nf]')?.dataset.nf;
       if (nf) { if (nf === 'hide') S.notify.hiddenDate = localDate(); else S.notify.collapsed = !S.notify.collapsed; await chrome.storage.local.set({ weeklyNotify: S.notify }); return rr(); }
       if (id === 'dashBell') { if (S.notify.hiddenDate === localDate()) { S.notify.hiddenDate = ''; S.notify.collapsed = false; } else S.notify.collapsed = !S.notify.collapsed; await chrome.storage.local.set({ weeklyNotify: S.notify }); return rr(); }

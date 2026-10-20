@@ -104,3 +104,8 @@ The "visited yesterday" figure per doctor was approximate: the report's *Last Vi
 
 ### Services tab: comparison with the previous two months (extension 1.8.2)
 "📥 سحب الشهرين السابقين للمقارنة" pulls the two previous months' performance data (Jeddah, Makkah, Yanbu) through the extension - **without touching the extension's local copy or daily snapshot** (`noRecord`) - and shows, per service (DR + the 13 services), planned / done / completion % for the three months, the change in done vs the previous month, and two charts (done per service, completion % per service). The page filters (doctor / branch / city / company / HARP / services) apply to all three months; De-Active is excluded like the rest of the tab. The pulled months are kept for the browser session.
+
+### Extension 1.8.3 and site load speed
+- The extension's 📊 tab now has a one-glance **status strip** (version, iCare session, last fetch, daily fetch, exact / approximate yesterday figures, last error) and two **sub-tabs**: 📊 Summary (notifications, alerts, key tables, doctors) and 📨 Tasks (rules, cases, prepare) - filters stay on top.
+- The site no longer blocks the first paint on the PDF / Word libraries (`defer`); they are only needed when exporting.
+- Settings sync: the Netlify `FIRESTORE_PRIVATE_KEY` was replaced with a fresh service-account key (the previous key had been exposed in a chat); the old key still exists and should be deleted once other apps that share it are updated.
