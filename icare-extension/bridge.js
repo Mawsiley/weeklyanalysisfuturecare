@@ -28,6 +28,8 @@
         reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_GET_REPORT' }));
       } else if(m.type === 'FETCH_NEW'){
         reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_FETCH_NEW' }));
+      } else if(m.type === 'GET_YVISITS'){
+        reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_GET_YVISITS' }));
       } else if(m.type === 'GET_NEW'){
         reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_GET_NEW' }));
       } else if(m.type === 'SENT'){

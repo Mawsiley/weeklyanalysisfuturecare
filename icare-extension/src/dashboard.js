@@ -126,27 +126,31 @@
   function yesterdayData() {
     if (!S.rows.length) return null;
     const yd = localDateOf(Date.now() - 86400000), per = new Map(), snaps = (S.daily && S.daily.snapshots) || [];
-    const cur = snaps[snaps.length - 1], prev = snaps.find(x => x.date === yd), diff = !!(cur && prev && cur.date !== prev.date && cur.date > prev.date);
+    const yv = S.daily && S.daily.yvisits && S.daily.yvisits.date === yd ? S.daily.yvisits : null; // exact: doctor visits of yesterday from the patient files
+    const cur = snaps[snaps.length - 1], prev = snaps.find(x => x.date === yd), diff = false;
     active().forEach(x => {
       const k = x.doctor || '—', o = per.get(k) || { doctor: k, visited: 0, plan: 0, done: 0, remain: 0 };
-      if (!diff && x.lv === yd && x.d > 0) o.visited++;
+      if (!yv && x.lv === yd && x.d > 0) o.visited++;
       const eff = x.d > 0 && x.p > x.d ? x.d : x.p;
       o.plan += eff; o.done += x.d; o.remain += Math.max(0, eff - x.d); per.set(k, o);
     });
-    if (diff) per.forEach((o, k) => { const a = (cur.byDoc[k] || {}).done || 0, b = (prev.byDoc[k] || {}).done || 0; o.visited = Math.max(0, a - b); });
+    if (yv) {
+      const nk = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(), idx = new Map([...per.keys()].map(k => [nk(k), k]));
+      Object.entries(yv.byDoc || {}).forEach(([name, n]) => { const k = idx.get(nk(name)) || name; const o = per.get(k) || { doctor: k, visited: 0, plan: 0, done: 0, remain: 0 }; o.visited = n; per.set(k, o); });
+    }
     const list = [...per.values()].filter(o => o.plan > 0 || o.visited > 0).sort((a, b) => b.remain - a.remain || b.visited - a.visited);
     const latest = active().map(x => x.lv).filter(Boolean).sort().pop() || '';
-    return { date: yd, diff, from: diff ? prev.date : '', list, latest, tot: { visited: list.reduce((n, o) => n + o.visited, 0), remain: list.reduce((n, o) => n + o.remain, 0) } };
+    return { date: yd, diff, exact: !!yv, yv, from: '', list, latest, tot: { visited: list.reduce((n, o) => n + o.visited, 0), remain: list.reduce((n, o) => n + o.remain, 0) } };
   }
   function notifyHtml() {
     const t = localDate(); if (S.notify.hiddenDate === t || !S.rows.length) return '';
     const y = yesterdayData(); if (!y) return '';
-    const stale = !y.diff && y.latest && y.latest < y.date ? '<div class="dash-alert warn"><span>⚠ آخر زيارة مسجلة في الملف ' + esc(y.latest) + ' — قد لا يكون التقرير محدّثاً لأمس.</span></div>' : '';
+    const stale = !y.exact && y.latest && y.latest < y.date ? '<div class="dash-alert warn"><span>⚠ آخر زيارة مسجلة في الملف ' + esc(y.latest) + ' — قد لا يكون التقرير محدّثاً لأمس.</span></div>' : '';
     return '<div class="dash-notify ' + (S.notify.collapsed ? 'min' : '') + '"><div class="dash-notify-head"><b>🔔 أمس ' + esc(y.date) + ' — زيارات الأطباء والمتبقي</b><span><button class="btn-sm" data-nf="min" title="تصغير/توسيع">' + (S.notify.collapsed ? '▢' : '—') + '</button><button class="btn-sm" data-nf="hide" title="إخفاء حتى الغد (زر 🔔 يعيده)">✕</button></span></div>' +
-      '<div class="dash-notify-body">' + stale + '<div class="dash-table"><table><thead><tr><th>الطبيب</th><th title="' + esc(y.diff ? 'زيادة DR Done منذ نسخة ' + y.from : 'حالات آخر زيارة لها أمس ولها زيارة منفذة') + '">زار أمس</th><th title="DR Plan − DR Done">المتبقي</th></tr></thead><tbody>' +
+      '<div class="dash-notify-body">' + stale + '<div class="dash-table"><table><thead><tr><th>الطبيب</th><th title="' + esc(y.exact ? 'مرضى آخر زيارة طبيب مسجلة لهم أمس — بالطبيب الذي زارهم' : 'تقريبي — حدّث الجلب ليُحسب بدقة') + '">زار أمس</th><th title="DR Plan − DR Done">المتبقي</th></tr></thead><tbody>' +
       y.list.map(o => '<tr><td>' + esc(o.doctor) + '</td><td>' + o.visited + '</td><td>' + (o.remain ? '<b class="dash-rem">' + o.remain + '</b>' : '0') + '</td></tr>').join('') +
       '<tr class="dash-tot"><td>الإجمالي</td><td>' + y.tot.visited + '</td><td>' + y.tot.remain + '</td></tr></tbody></table></div>' +
-      '<div class="dash-muted" style="font-size:11px">' + (y.diff ? 'الطريقة: الفرق في DR Done منذ نسخة ' + esc(y.from) + ' (دقيقة).' : 'الطريقة: عمود Last Visit (آخر زيارة مسجلة للمريض) مع زيارة طبيب منفذة.') + '</div></div></div>';
+      '<div class="dash-muted" style="font-size:11px">' + (y.exact ? 'الطريقة (دقيقة): تاريخ آخر زيارة طبيب (GP) في ملف المريض = أمس، ويُنسب للطبيب الذي زاره فعلاً — ' + y.yv.n + ' زيارة من ' + y.yv.candidates + ' ملف فُحص.' : '⚠ تقريبي: لا توجد بعد بيانات دقيقة لأمس — اضغط «جلب الآن» ليُحسب من ملفات المرضى (زيارة الطبيب فقط).') + '</div></div></div>';
   }
   // Important alerts for the dashboard: freshness of the local copy, session, Not Done changes, pending work.
   function alerts() {

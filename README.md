@@ -98,3 +98,6 @@ The 🆕 tab keeps the filters and the percentage chips (and the "patients under
 
 ### New patients: De-Active split by CSheet
 De-Active patients are split into **stopped after a visit** (CSheet visits >= 1) and **stopped before any visit** (CSheet = 0): two clickable chips under De-Active, a "De-Active - after / before the visit" table in the Summary tab, the case explanation, and the two extra KPI rows + finding line in the Word / PDF / Excel / PowerPoint reports.
+
+### Yesterday's visits: exact (extension 1.8.1)
+The "visited yesterday" figure per doctor was approximate: the report's *Last Visit* mixes every service (nursing, PT, lab...) and the doctor was the patient's assigned doctor. Now, after each fetch the extension takes the patients whose Last Visit is yesterday or later, reads each patient file's `recent_visits.gp` (the last **doctor** visit date and the **visiting doctor**) and counts the patients whose doctor visit was yesterday, per visiting doctor. Only counts per doctor are kept (no names, mobiles or IDs). The notification box in the extension and on the site shows "دقيق" with the number of files checked, or "تقريبي" until the first fetch with extension 1.8.1+. Limit: only the *last* doctor visit date is available, so a patient visited by the doctor yesterday **and** again today is not counted for yesterday.

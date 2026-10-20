@@ -993,32 +993,39 @@ function dutyNowInfo(now=new Date()){
   return out;
 }
 /* yesterday: per doctor visited cases + remaining visits (from the loaded report) */
+const notifyYv={v:null,at:0,busy:false};
+async function notifyRefreshYv(){
+  if(!window.fcIcare||notifyYv.busy||Date.now()-notifyYv.at<5*60*1000)return;notifyYv.busy=true;
+  try{const r=await window.fcIcare.ask('GET_YVISITS',{},15000);notifyYv.v=r&&r.ok?r.yv:null;notifyYv.at=Date.now();if(notifyYv.v)renderNotify()}finally{notifyYv.busy=false}
+}
 function notifyYesterday(){
   if(!rows||!rows.length)return null;
   const yd=ymdLocal(addDays(new Date(),-1)),per=new Map;let latest=null;
+  const yv=notifyYv.v&&notifyYv.v.date===yd?notifyYv.v:null; /* exact: yesterday's DOCTOR visits from the patient files, by the visiting doctor */
   rows.forEach(x=>{
     const o=per.get(x.doctor)||{doctor:x.doctor,visited:0,plan:0,done:0,remain:0};
     const d=parseVisitDate(x.lastVisit);if(d&&(!latest||d>latest))latest=d;
-    if(d&&ymdLocal(d)===yd&&x.drD>0)o.visited++;
+    if(!yv&&d&&ymdLocal(d)===yd&&x.drD>0)o.visited++;
     o.plan+=x.drP;o.done+=x.drD;o.remain+=Math.max(0,x.drP-x.drD);per.set(x.doctor,o);
   });
+  if(yv){const idx=new Map([...per.keys()].map(k=>[norm(k),k]));Object.entries(yv.byDoc||{}).forEach(([name,n])=>{const k=idx.get(norm(name))||name,o=per.get(k)||{doctor:k,visited:0,plan:0,done:0,remain:0};o.visited=n;per.set(k,o)})}
   const list=[...per.values()].filter(o=>o.plan>0||o.visited>0).sort((a,b)=>b.remain-a.remain||b.visited-a.visited);
-  return{date:yd,list,latest:latest?ymdLocal(latest):'',tot:{visited:sum(list,o=>o.visited),remain:sum(list,o=>o.remain),plan:sum(list,o=>o.plan),done:sum(list,o=>o.done)}};
+  return{date:yd,exact:!!yv,yv,list,latest:latest?ymdLocal(latest):'',tot:{visited:sum(list,o=>o.visited),remain:sum(list,o=>o.remain),plan:sum(list,o=>o.plan),done:sum(list,o=>o.done)}};
 }
 function renderNotify(){
   let box=$('notifyBox');
   if(!box){box=document.createElement('div');box.id='notifyBox';box.setAttribute('role','status');document.body.appendChild(box)}
   const today=ymdLocal(new Date());
   if(notifyCfg.hiddenDate===today){box.style.display='none';return}
-  box.style.display='';box.classList.toggle('min',!!notifyCfg.collapsed);
+  box.style.display='';box.classList.toggle('min',!!notifyCfg.collapsed);notifyRefreshYv();
   const duty=dutyNowInfo(),yy=notifyYesterday(),tm=new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});
   const dutyHtml=duty.shifts.length?duty.shifts.map(s=>`<div class="nfRow${s.leave?' bad':''}"><span>${esc(s.label)}</span><b>${esc(s.doctor)}</b>${s.leave?'<em>⚠ في إجازة — يحتاج بديل</em>':''}</div>`).join('')+(duty.next?`<div class="nfNext">التالي ${esc(duty.next.at)} — ${esc(duty.next.label)}: <b>${esc(duty.next.doctor||'—')}</b></div>`:''):'<div class="nfMuted">لا يوجد تعيين مناوبة لهذا الوقت في الجدول.</div>';
   const first=duty.shifts[0],head=first?`المناوب الآن: ${first.doctor}`:'إشعارات اليوم';
   let yHtml;
   if(!yy)yHtml='<div class="nfMuted">حمّل تقرير الأداء (أو اجلبه من iCare) لعرض زيارات أمس والمتبقي لكل طبيب.</div>';
   else{
-    const stale=yy.latest&&yy.latest<yy.date?`<div class="nfWarn">⚠ آخر زيارة مسجلة في الملف ${esc(yy.latest)} — قد لا يكون التقرير محدّثاً لأمس.</div>`:'';
-    yHtml=`${stale}<div class="nfTable"><table><thead><tr><th>الطبيب</th><th title="حالاته التي آخر زيارة مسجلة لها أمس ولها زيارة طبيب منفذة">زار أمس</th><th title="DR Plan − DR Done">المتبقي</th></tr></thead><tbody>${yy.list.map(o=>`<tr><td>${esc(o.doctor)}</td><td>${o.visited}</td><td>${o.remain?`<b class="nfRem">${o.remain}</b>`:'0'}</td></tr>`).join('')}<tr class="nfTot"><td>الإجمالي</td><td>${yy.tot.visited}</td><td>${yy.tot.remain}</td></tr></tbody></table></div>`;
+    const stale=!yy.exact&&yy.latest&&yy.latest<yy.date?`<div class="nfWarn">⚠ آخر زيارة مسجلة في الملف ${esc(yy.latest)} — قد لا يكون التقرير محدّثاً لأمس.</div>`:'';
+    yHtml=`${stale}<div class="nfTable"><table><thead><tr><th>الطبيب</th><th title="زيارات الطبيب أمس">زار أمس</th><th title="DR Plan − DR Done">المتبقي</th></tr></thead><tbody>${yy.list.map(o=>`<tr><td>${esc(o.doctor)}</td><td>${o.visited}</td><td>${o.remain?`<b class="nfRem">${o.remain}</b>`:'0'}</td></tr>`).join('')}<tr class="nfTot"><td>الإجمالي</td><td>${yy.tot.visited}</td><td>${yy.tot.remain}</td></tr></tbody></table></div><div class="nfMuted" style="font-size:11px">${yy.exact?'دقيق: زيارة الطبيب (GP) المسجلة أمس في ملف المريض، تُنسب للطبيب الذي زاره فعلاً ('+yy.yv.n+' زيارة من '+yy.yv.candidates+' ملف فُحص).':'⚠ تقريبي: عمود Last Visit يخلط كل الخدمات. اجلب من iCare بالإضافة (1.8.1+) لتُحسب زيارات أمس بدقة.'}</div>`;
   }
   box.innerHTML=`<div class="nfHead"><b title="${esc(head)}">🔔 ${esc(head)}</b><span class="nfBtns"><button type="button" data-nf="min" title="${notifyCfg.collapsed?'توسيع':'تصغير'}">${notifyCfg.collapsed?'▢':'—'}</button><button type="button" data-nf="hide" title="إخفاء حتى الغد (زر 🔔 في الأعلى يُعيده)">✕</button></span></div>
   <div class="nfBody"><div class="nfSec"><h4>🩺 المناوبون الآن <small>${esc(tm)}</small></h4>${dutyHtml}</div>

@@ -92,7 +92,9 @@ async function fetchPerformance({ month, cities }){
         }
       }
     }
-    return { ok: true, month, matched, missing, counts, headers: PERF_HEADERS, rows: all.map((r, i) => perfRow(r, i + 1)), snap: snapshotOf(all, month), fetchedAt: new Date().toISOString() };
+    const yd = ymdMs(Date.now() - 86400000);
+    const vcand = all.filter(r => !/de-?active|inactive/i.test(String(r.patient_status || '')) && String(r.last_visit || '').slice(0, 10) >= yd).map(r => String(r.patient_id));
+    return { ok: true, month, matched, missing, counts, headers: PERF_HEADERS, rows: all.map((r, i) => perfRow(r, i + 1)), snap: snapshotOf(all, month), vcand, fetchedAt: new Date().toISOString() };
   } catch(e){
     return { ok: false, code: e.code || 'NETWORK' };
   }
@@ -130,7 +132,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if(!PAGE_ORIGINS.includes(from) && !fromExtensionPage(sender)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
     fetchPerformance(msg).then(async r => {
       if(r.ok && r.rows.length) await recordFetch(r, 'manual');
-      const { snap, ...rest } = r; // the snapshot stays inside the extension
+      const { snap, vcand, ...rest } = r; // the snapshot stays inside the extension
       sendResponse(rest);
     });
     return true;
@@ -162,6 +164,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   // New patients: fetch now (page or extension window) / the saved local copy.
+  if(msg && msg.type === 'FCW_GET_YVISITS'){
+    if(!PAGE_ORIGINS.includes(from) && !fromExtensionPage(sender)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
+    chrome.storage.local.get('weeklyDaily').then(({ weeklyDaily: d }) => sendResponse(d && d.yvisits ? { ok: true, yv: { date: d.yvisits.date, byDoc: d.yvisits.byDoc, n: d.yvisits.n, candidates: d.yvisits.candidates, checked: d.yvisits.checked, failed: d.yvisits.failed, at: d.yvisits.at } } : { ok: false, code: 'NO_YVISITS' }));
+    return true;
+  }
   if(msg && msg.type === 'FCW_FETCH_NEW'){
     if(!PAGE_ORIGINS.includes(from) && !fromExtensionPage(sender)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
     fetchNewFiles().then(async n => { if(n.ok) await recordNew(n, 'manual'); sendResponse(n); });
@@ -276,6 +283,30 @@ function snapshotOf(raw, month){
   }
   return snap;
 }
+const ymdMs = ms => new Date(ms - new Date(ms).getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+// "Yesterday's visits per doctor" must be DOCTOR visits by the doctor who made them. The performance report's Last Visit mixes
+// every service (nursing / PT / lab ...), so it is only used to pick candidates; the date of the last DOCTOR visit and the visiting
+// doctor come from the patient file (recent_visits.gp). Only the date and the doctor's name are kept - nothing else from the file.
+async function computeYesterdayVisits(ptids){
+  const yd = ymdMs(Date.now() - 86400000), list = [...new Set(ptids)].slice(0, 800), byDoc = {}, hit = [];
+  let checked = 0, failed = 0, i = 0;
+  const worker = async () => {
+    while(i < list.length){
+      const id = list[i++];
+      try{
+        const j = await icareGet('/patient-info/' + encodeURIComponent(id));
+        checked++;
+        const g = j && j.recent_visits && j.recent_visits.gp;
+        if(g && String(g.date || '').slice(0, 10) === yd){ const k = String(g.staff_name || '—').trim() || '—'; byDoc[k] = (byDoc[k] || 0) + 1; hit.push(id); }
+      }catch(e){ failed++; if(e && (e.code === 'TOKEN_EXPIRED' || e.code === 'NO_TOKEN')) break; }
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  const yv = { date: yd, byDoc, n: hit.length, ptids: hit, candidates: list.length, checked, failed, at: Date.now() };
+  const { weeklyDaily: d = {} } = await chrome.storage.local.get('weeklyDaily');
+  await chrome.storage.local.set({ weeklyDaily: { ...d, yvisits: yv } });
+  return yv;
+}
 async function recordFetch(r, how){
   const rep = { name: `performance-report_${r.month}_${Object.keys(r.counts).join('-')}.xls`, b64: reportB64(r), source: 'icare', month: r.month, counts: r.counts, how, at: Date.now() };
   // weeklyReport = the report the dashboard works on; weeklyLocal = the latest iCare copy (never replaced by a file loaded by hand)
@@ -284,6 +315,7 @@ async function recordFetch(r, how){
   const snaps = (d.snapshots || []).filter(x => x.date !== r.snap.date);
   snaps.push(r.snap); snaps.sort((a, b) => (a.date < b.date ? -1 : 1));
   await chrome.storage.local.set({ weeklyDaily: { ...d, lastDate: r.snap.date, lastAt: r.snap.at, lastHow: how, lastError: '', lastErrorAt: '', snapshots: snaps.slice(-14) } });
+  computeYesterdayVisits(r.vcand || []).catch(() => {}); // not awaited: the report is already saved
 }
 let dailyRunning = false;
 async function dailyCheck(){
