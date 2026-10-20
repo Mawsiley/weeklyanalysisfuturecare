@@ -95,3 +95,6 @@ A not-visited patient whose file is already closed by its status (last action / 
 
 ### New patients: organised in tabs
 The 🆕 tab keeps the filters and the percentage chips (and the "patients under the filter" list) at the top, and splits the analysis into sub-tabs with counters: 📊 Summary · 🚫 Not visited (by Project, SABIC / Acute, notes classification, list with justification) · 📨 Tasks · ✅ Visited & services · 📈 Analysis (doctor / city / company / status / referral) · 🔎 Case explanations. The Word / PDF / Excel / PowerPoint reports follow the same order (summary → not visited → visited & services → doctor / city / project → case explanations).
+
+### New patients: De-Active split by CSheet
+De-Active patients are split into **stopped after a visit** (CSheet visits >= 1) and **stopped before any visit** (CSheet = 0): two clickable chips under De-Active, a "De-Active - after / before the visit" table in the Summary tab, the case explanation, and the two extra KPI rows + finding line in the Word / PDF / Excel / PowerPoint reports.
