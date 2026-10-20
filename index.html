@@ -1058,7 +1058,7 @@ setupNotify();markNowDuty();
    Data: the extension reads the page's own API (daily + on demand, saved locally) or a CSV/Excel exported from the page.
    Privacy: names, mobile numbers, national IDs and nationality are never read or kept — only PTID and analysis fields. */
 const npOp=r=>!!npDate(r.reg);
-const npState={visOpen:true,cmpStatus:'',perf:null,drill:null,rows:[],src:'',at:0,view:'both',doctor:'',city:'',project:'',msg:'',busy:false,ext:null,auto:false};
+const npState={visOpen:true,cmpStatus:'',perf:null,drill:null,sub:'summary',rows:[],src:'',at:0,view:'both',doctor:'',city:'',project:'',msg:'',busy:false,ext:null,auto:false};
 const npYm=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 const npMonths=()=>{const n=new Date();return{prev:npYm(new Date(n.getFullYear(),n.getMonth()-1,1)),cur:npYm(n)}};
 function npDate(v){const t=txt(v);if(!t)return'';let m=t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;m=t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;if(/^\d{5}(\.\d+)?$/.test(t)){const d=new Date(Date.UTC(1899,11,30)+Number(t)*864e5);return d.toISOString().slice(0,10)}return''}
@@ -1317,6 +1317,8 @@ function npTkBind(el){
   const again=()=>{const y=window.scrollY;renderNewPts();window.scrollTo(0,y)};
   el.addEventListener('click',e=>{
     const id=e.target.id;
+    const stb=e.target.closest('[data-npsub]');
+    if(stb){npState.sub=stb.dataset.npsub;el.querySelectorAll('.npSubTab').forEach(b=>b.classList.toggle('on',b===stb));el.querySelectorAll('.npSub').forEach(d=>d.classList.toggle('on',d.dataset.npt===npState.sub));if(charts.npChart)try{charts.npChart.resize()}catch{}return}
     if(id==='npDrillClose'){npState.drill=null;return again()}
     if(id==='npDrillXlsx')return npDrillXlsx();
     const dr=e.target.closest('[data-npd]');
@@ -1390,8 +1392,8 @@ function renderNewPts(){
   const noAppr=ro.filter(r=>!r.appr).length;if(noAppr)alerts.push(`📄 ${noAppr} مريض جديد في الفترة المعروضة بلا رقم موافقة`);
   if(mp.dup+mc.dup)alerts.push(`📱 ${mp.dup+mc.dup} طلب بنفس رقم الجوال لمريض آخر (مكرر محتمل) في الفترة المعروضة`);
   const topPend=npGroup(ro.filter(r=>!(r.cs>0)&&(npDays(r.cr,localToday())??0)>=3),r=>r.doc).slice(0,3);if(topPend.length)alerts.push('👨‍⚕️ أكثر الأطباء تأخراً في زيارة الجدد: '+topPend.map(g=>`${g.key} (${g.p+g.c})`).join('، '));
-  if(!document.getElementById('npSecCss')){const st=document.createElement('style');st.id='npSecCss';st.textContent='.npSec{margin:24px 0 8px;padding:7px 12px;background:rgba(15,118,110,.1);border-inline-start:4px solid #0f766e;border-radius:8px;font-size:16px;font-weight:800}.npFun .npChip small{display:block;opacity:.75;font-size:11px}.npClick,.npChip[data-npd]{cursor:pointer}.npClick:hover td{background:rgba(15,118,110,.09)}.npChip[data-npd]:hover{outline:2px solid #0f766e55}.npChip.npSel{outline:2px solid #0f766e}tr.npSel td{background:rgba(15,118,110,.16)}';document.head.appendChild(st)}
-  const npSec=(n,t)=>'<div class="npSec">'+n+' '+t+'</div>';
+  if(!document.getElementById('npSecCss')){const st=document.createElement('style');st.id='npSecCss';st.textContent='.npSec{margin:24px 0 8px;padding:7px 12px;background:rgba(15,118,110,.1);border-inline-start:4px solid #0f766e;border-radius:8px;font-size:16px;font-weight:800}.npFun .npChip small{display:block;opacity:.75;font-size:11px}.npSub{display:none}.npSub.on{display:block}.npSubBar{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 8px;padding:6px 0;border-bottom:2px solid #0f766e33}.npSubTab{border:1px solid #cbd5e1;background:#fff;color:inherit;border-radius:999px;padding:7px 14px;font:inherit;cursor:pointer}.npSubTab.on{background:#0f766e;color:#fff;border-color:#0f766e}.npSubTab b{background:rgba(0,0,0,.12);border-radius:10px;padding:0 7px;margin-inline-start:4px;font-size:12px}body.dark .npSubTab{background:#0f172a;color:#e2e8f0;border-color:#334155}body.dark .npSubTab.on{background:#0f766e;color:#fff}.npClick,.npChip[data-npd]{cursor:pointer}.npClick:hover td{background:rgba(15,118,110,.09)}.npChip[data-npd]:hover{outline:2px solid #0f766e55}.npChip.npSel{outline:2px solid #0f766e}tr.npSel td{background:rgba(15,118,110,.16)}';document.head.appendChild(st)}
+  const npSec=(n,t)=>'<div class="npSec">'+(n?n+' ':'')+t+'</div>';
   const funnel=(()=>{const tot=ro.length,pc=(a,b)=>b?Math.round(a/b*100)+'%':'—',catOf=npTkCat,its=cmp.items;
     const vis=its.filter(i=>i.r.cs>0),nv=its.filter(i=>!(i.r.cs>0)),just=nv.filter(i=>['Hospital','Traveler','De-Active'].includes(catOf(i))||(!i.x&&npCash(i.r))),acute=nv.filter(i=>npIsAcute(i)&&!just.includes(i)),rest=nv.filter(i=>!just.includes(i)&&!acute.includes(i)),clo=rest.filter(i=>npClosed(i.r)),unj=rest.filter(i=>!npClosed(i.r)),cnt=k=>its.filter(i=>catOf(i)===k).length,sab=nv.filter(i=>npSabic(i.r)).length;
     const chip=(t,v,sub,c,key)=>'<div class="npChip"'+(key?' data-npd="f|'+key+'" title="اضغط لعرض المرضى"':'')+' style="--c:'+c+'"><span>'+t+'</span><b>'+v+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</div>';
@@ -1399,6 +1401,9 @@ function renderNewPts(){
       chip('↳ مبرَّر (مستشفى/مسافر/De-Active/كاش)',just.length,pc(just.length,nv.length)+' من غير المزارين','#0891b2','just')+chip('↳ متابعة مفتوحة (بلا تبرير)',unj.length,pc(unj.length,nv.length)+' من غير المزارين',unj.length?'#dc2626':'#16a34a','unj')+chip('↳ ملف مغلق بحالته (Removed/Refused…)',clo.length,pc(clo.length,nv.length)+' من غير المزارين','#64748b','closed')+(cmp.hasPerf?chip('↳ Acute (IV/LAB بلا زيارة)',acute.length,pc(acute.length,nv.length)+' من غير المزارين','#be123c','acute'):'')+
       chip('Active',cnt('Active'),pc(cnt('Active'),tot),'#16a34a','Active')+chip('De-Active',cnt('De-Active'),pc(cnt('De-Active'),tot),'#dc2626','De-Active')+chip('في المستشفى',cnt('Hospital'),pc(cnt('Hospital'),tot),'#0891b2','Hospital')+chip('مسافر',cnt('Traveler'),pc(cnt('Traveler'),tot),'#d97706','Traveler')+
       chip('SABIC لم يُزاروا',sab,pc(sab,nv.length)+' من غير المزارين','#2563eb','sabic')+'</div>'})();
+  const subTabs=[['summary','📊 الملخص',''],['notvisited','🚫 لم تتم زيارتهم',cmp.items.filter(i=>!(i.r.cs>0)).length],['tasks','📨 التاسكات',(npTk.ready||[]).length],['visited','✅ الزيارات والخدمات',cmp.items.filter(i=>i.r.cs>0).length],['analysis','📈 التحليل',''],['cases','🔎 تفسير الحالات',cmp.items.length]];
+  const sub=subTabs.some(t=>t[0]===npState.sub)?npState.sub:'summary',on=k=>k===sub?'on':'';
+  const npSubBar='<div class="npSubBar">'+subTabs.map(([k,l,n])=>'<button class="npSubTab '+on(k)+'" data-npsub="'+k+'">'+l+(n!==''?' <b>'+n+'</b>':'')+'</button>').join('')+'</div>';
   el.innerHTML=`<div class="npWrap">
   <div class="npHead"><div><h2>🆕 المرضى الجدد — non-CDM</h2><p>تحليل الشهر السابق (${prev}) والحالي (${cur}) فقط من <a href="https://icare.com.sa/new-file?cdm_siss=non_cdm" target="_blank" rel="noopener">icare.com.sa/new-file?cdm_siss=non_cdm</a>. لا تُقرأ أو تُحفظ أسماء أو أرقام جوال أو هويات. الشهر = شهر تاريخ فتح الملف (File Open Time).</p></div><div class="npExt ${ext&&ext.ok&&ext.newApi?'ok':'bad'}">${extTxt}</div></div>
   <div class="npBar"><button class="btn green" id="npFetch" ${npState.busy?'disabled':''}>📥 جلب من iCare</button><button class="btn white" id="npLocal">📦 النسخة المحلية</button><button class="btn white" id="npPick">📂 ملف CSV / Excel</button><input type="file" id="npFile" accept=".csv,.xls,.xlsx" hidden><button class="btn white" id="npExport" ${all.length?'':'disabled'}>⬇ تصدير Excel</button><span class="npRep"><b>📑 تقرير الفترة:</b><button class="btn white" id="npRepWord" ${all.length?'':'disabled'}>📄 Word</button><button class="btn white" id="npRepPdf" ${all.length?'':'disabled'}>📕 PDF</button><button class="btn white" id="npRepExcel" ${all.length?'':'disabled'}>📗 Excel</button><button class="btn white" id="npRepPpt" ${all.length?'':'disabled'}>📽 PowerPoint</button></span>
@@ -1406,31 +1411,42 @@ function renderNewPts(){
     <select id="npProject"><option value="">كل الـ Projects</option>${projects.map(d=>`<option ${npState.project===d?'selected':''}>${esc(d)}</option>`).join('')}</select><select id="npView"><option value="both" ${npState.view==='both'?'selected':''}>الشهران</option><option value="prev" ${npState.view==='prev'?'selected':''}>${L.prev}</option><option value="cur" ${npState.view==='cur'?'selected':''}>${L.cur}</option></select></div>
   <div class="npMsg" role="status">${esc(npState.msg||(npState.src?`المصدر: ${npState.src}${npState.at?' — '+new Date(npState.at).toLocaleString('ar-SA'):''}`:'اجلب البيانات من iCare أو حمّل ملفاً.'))}</div>
   ${all.length?`<div class="npBase">📌 العدد الكلي = <b>الملفات المفتوحة (File Open Time)</b> وعليه تُحسب كل النسب: ${npBoth(mp.total,mc.total)}. <b>كل ملف يُنسَب إلى شهر تاريخ فتح ملفه</b>${npState.view==='prev'?' — المعروض: الملفات التي فُتحت في الشهر السابق فقط':npState.view==='cur'?' — المعروض: الملفات التي فُتحت في الشهر الحالي فقط':''}. طلبات المرضى الجدد (العدد الأكبر، للتوضيح فقط): ${npBoth(mp.orders,mc.orders,true)}.</div>${alerts.length?`<div class="npAlerts">${alerts.map(a=>`<div>${esc(a)}</div>`).join('')}</div>`:''}
-  ${npSec('①','الخلاصة والنسب — حسب الفلاتر والشهر المختار')}
   ${funnel}
   ${npDrillCard(cmp)}
+  ${npSubBar}
+  <div class="npSub ${on('summary')}" data-npt="summary">
+  ${npSec('','📊 الملخص — مقارنة المؤشرات')}
   <div class="card"><h3>${npState.view==='both'?'مقارنة الشهرين':npState.view==='prev'?'الشهر السابق ('+prev+')':'الشهر الحالي ('+cur+')'} — الأساس: الملفات المفتوحة (File Open Time)</h3>${table(['المؤشر',L.prev,L.cur,'الفرق'],[
     row('طلبات المرضى الجدد (العدد الأكبر — للتوضيح فقط)',mp.orders,mc.orders),row('<b>فُتح الملف (File Open Time) = العدد الكلي</b> — أساس النسب',mp.total,mc.total),row('طلبات لم يُفتح ملفها بعد',mp.notOpened,mc.notOpened,v=>v,true),row('نسبة فتح الملف من الطلبات',mp.orders?mp.total/mp.orders*100:0,mc.orders?mc.total/mc.orders*100:0,v=>v.toFixed(0)+'%'),row('تمت زيارتهم (CSheet ≥ 1)',mp.visited,mc.visited),row('نسبة الزيارة (من الملفات المفتوحة)',mp.total?mp.visited/mp.total*100:0,mc.total?mc.visited/mc.total*100:0,v=>v.toFixed(0)+'%'),row('لم تتم زيارتهم',mp.pending,mc.pending,v=>v,true),row('معلّقون ≥ 3 أيام بلا زيارة',mp.pendingOld,mc.pendingOld,v=>v,true),
     row('لديهم رقم موافقة',mp.appr,mc.appr),row('لديهم موعد',mp.appt,mc.appt),row('محوّلون (Referral)',mp.ref,mc.ref),row('Active (Patient Active)',mp.actv,mc.actv),row('De-Active',mp.deact,mc.deact,v=>v,true),row('% De-Active',mp.total?mp.deact/mp.total*100:0,mc.total?mc.deact/mc.total*100:0,v=>v.toFixed(0)+'%',true),row('VIP / النخبة',mp.vip,mc.vip),row('طلبات بجوال مكرر',mp.dup,mc.dup,v=>v,true),row('متوسط أيام (إنشاء → فتح الملف)',mp.avgOpen,mc.avgOpen,v=>v==null?'—':v.toFixed(1),true)])}</div>
-  ${npSec('②','حالة المرضى: Active / De-Active / مستشفى / مسافر')}
+  ${npSec('','حالة المرضى: Active / De-Active')}
   <div class="grid2">${npTable('حسب حالة المريض: Active / De-Active',npGroup(ro,r=>r.act||'غير محدد',rs),true,'act')}</div>
-  ${npSec('③','لم تتم زيارتهم — المطلوب عمله')}
+  <div class="card"><h3>الملفات المفتوحة يوميًا (حسب تاريخ فتح الملف)</h3><div style="height:260px"><canvas id="npChart"></canvas></div></div>
+  </div>
+  <div class="npSub ${on('notvisited')}" data-npt="notvisited">
+  ${npSec('','🚫 لم تتم زيارتهم — المطلوب عمله')}
   ${npProjectCard(ro,rs)}
   ${sabicCard()}
   ${noteCard}
   <div class="card"><h3>لم تتم زيارتهم بعد — الأقدم أولاً (${pend.length}${ro.filter(r=>!(r.cs>0)).length>100?' من '+ro.filter(r=>!(r.cs>0)).length:''})</h3>${table(['PTID','Project','الطبيب','المدينة','تاريخ الإنشاء','أيام','الحالة','آخر إجراء','التبرير (حالة المريض في الأداء)','النوع','المختص (SABIC)','ملاحظة'],pend.map(({r,d})=>`<tr><td>${npPtLink(r.ptid)}</td><td>${esc(r.proj||'—')}</td><td class="name">${esc(r.doc||'—')}</td><td>${esc(r.city||'—')}</td><td>${esc(npDate(r.cr))}</td><td>${d==null?'—':`<span class="badge ${d>=7?'bad':d>=3?'warn':'good'}">${d}</span>`}</td><td>${esc(r.st||'—')}</td><td>${esc(r.la||'—')}</td><td>${npJust(r)}</td><td>${npTypeCell(r)}</td><td>${npSpecCell(r)}</td><td style="white-space:nowrap">${npNoteCell(r.ptid)}</td></tr>`))}</div>
-  ${npSec('④','📨 فتح التاسكات — حسب الفلاتر والقواعد')}
+  </div>
+  <div class="npSub ${on('tasks')}" data-npt="tasks">
   ${tasksCard}
-  ${npSec('⑤','تمت زيارتهم والخدمات المنفذة')}
+  </div>
+  <div class="npSub ${on('visited')}" data-npt="visited">
+  ${npSec('','✅ تمت زيارتهم والخدمات المنفذة')}
   ${npVisitedBox(cmp)}
-  ${npSec('⑥','التحليل حسب الطبيب والمدينة والشركة والحالة والتحويل')}
+  </div>
+  <div class="npSub ${on('analysis')}" data-npt="analysis">
+  ${npSec('','📈 التحليل حسب الطبيب والمدينة والشركة والحالة والتحويل')}
   <div class="grid2">${npTable('حسب الطبيب',npGroup(ro,r=>r.doc,rs),true,'doc')}${npTable('حسب المدينة',npGroup(ro,r=>r.city,rs),true,'city')}</div>
   <div class="grid2">${npTable('حسب الشركة / التأمين',npGroup(ro,r=>r.comp||r.ins,rs),true,'comp')}${npTable('حسب الحالة (Status)',npGroup(ro,r=>r.st,rs),false,'st')}</div>
   ${ro.some(r=>r.ref)?`<div class="grid2">${npTable('مصادر التحويل (Referral)',npGroup(ro.filter(r=>r.ref),r=>r.rs||'بدون مصدر',rs.filter(r=>r.ref)),false,'refsrc')}</div>`:''}
-  ${npSec('⑦','تفسير كل حالة — مقارنة مع تقرير الأداء (PTID)')}
+  </div>
+  <div class="npSub ${on('cases')}" data-npt="cases">
+  ${npSec('','🔎 تفسير كل حالة — مقارنة مع تقرير الأداء (PTID)')}
   ${npCompareCard(cmp)}
-  ${npSec('⑧','الحركة اليومية')}
-  <div class="card"><h3>الملفات المفتوحة يوميًا (حسب تاريخ فتح الملف)</h3><div style="height:260px"><canvas id="npChart"></canvas></div></div>
+  </div>
   `:'<div class="npEmpty">لا توجد بيانات للشهرين السابق والحالي بعد.</div>'}</div>`;
   npChart(pr.filter(npOp),cr.filter(npOp));npApplyView();
 }
@@ -1565,7 +1581,7 @@ function npRep(){
     'Converted cases = new-patient orders whose patient file was opened (File Open Time); every percentage uses the opened files as the base. Each file belongs to the month its file was opened.',
     perf?'Status (Active / De-Active / Traveler / Hospital) and the services (P/D = planned / done) come from the performance report of the same months (pulled by the extension, or the report loaded in the dashboard), matched by PTID - the latest month decides the status and the services are summed over the months; files not found there use the Patient Active flag ('+K.unmatched+' file(s)).':'The performance report is not loaded: Traveler / Hospital and the services could not be determined; Active / De-Active come from the Patient Active flag.',
     'Visited = at least one CSheet visit. No patient names, mobile numbers or national IDs are read or included.']};
-  data.explained=explained;data.findings=findings;window.__npLastReport=data;return data;
+  data.explained=explained;data.findings=findings;data.notVisitedList=explained.filter(c=>c.visited==='No');window.__npLastReport=data;return data;
 }
 const npSave=(blob,name)=>{if(window.__npCapture){window.__npCapture(blob,name);return}const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500)};
 const npRepName=(d,ext)=>`New_Patients_Report_${d.period.replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')}_${d.generated}.${ext}`;
@@ -1585,9 +1601,8 @@ function npRepWord(){
     '<h2>Key findings</h2><ul>'+d.findings.map(n=>'<li>'+npEsc(n)+'</li>').join('')+'</ul>'+
     '<h2>1. Summary — what was converted</h2>'+tb(['Indicator','Value'],npKpiRows(d))+
     '<h2>2. Patient status of the converted cases</h2>'+tb(['Status','Cases','% of converted','Visited'],d.status.map(o=>[o.k,npNA(d,o.n),npNA(d,o.pct+'%'),o.visited]))+
-    '<h2>3. Services done for the visited patients (P/D)</h2>'+(d.perf?tb(['Service','Patients served','Planned (P)','Done (D)','% done'],d.svc.map(o=>[o.k,o.n,o.p,o.d,o.pct+'%'])):'<p>Load the performance report to include the services.</p>')+
-    '<h2>4. By doctor</h2>'+tb(npGrpHead,npGrpRows(d,d.groups.doctor))+'<h2>5. By city</h2>'+tb(npGrpHead,npGrpRows(d,d.groups.city))+'<h2>6. By project</h2>'+tb(npGrpHead,npGrpRows(d,d.groups.project))+
-    '<h2>7. Visited cases and the services done for each ('+d.cases.length+')</h2>'+tb(npCaseHead,npCaseRows(d))+
+    '<h2>3. Not visited cases ('+d.notVisitedList.length+')</h2>'+(d.notVisitedList.length?tb(['PTID','Month','Doctor','Project','City','Status','Explanation'],d.notVisitedList.map(c=>[c.ptid,c.month,c.doctor,c.project,c.city,c.status,c.explanation])):'<p>Every opened file was visited.</p>')+'<h2>4. Visited patients - services done (P/D)</h2>'+(d.perf?tb(['Service','Patients served','Planned (P)','Done (D)','% done'],d.svc.map(o=>[o.k,o.n,o.p,o.d,o.pct+'%'])):'<p>Load the performance report to include the services.</p>')+
+    '<h3>Visited cases and the services done for each ('+d.cases.length+')</h3>'+tb(npCaseHead,npCaseRows(d))+'<h2>5. By doctor</h2>'+tb(npGrpHead,npGrpRows(d,d.groups.doctor))+'<h2>6. By city</h2>'+tb(npGrpHead,npGrpRows(d,d.groups.city))+'<h2>7. By project</h2>'+tb(npGrpHead,npGrpRows(d,d.groups.project))+
     '<h2>8. Case-by-case explanation of all converted cases ('+d.explained.length+')</h2>'+tb(['PTID','Month','Doctor','Project','City','Status','Visits','Services done (D/P)','Explanation'],d.explained.map(c=>[c.ptid,c.month,c.doctor,c.project,c.city,c.status,c.visits,c.services,c.explanation]))+
     '<h2>Notes</h2><ul>'+d.notes.map(n=>'<li>'+npEsc(n)+'</li>').join('')+'</ul></body></html>';
   let blob,ext='docx';try{if(!window.htmlDocx?.asBlob)throw Error('converter unavailable');blob=window.htmlDocx.asBlob(html,{orientation:'landscape',margins:{top:567,right:567,bottom:567,left:567}})}catch{blob=new Blob([html],{type:'application/msword;charset=utf-8'});ext='doc'}
@@ -1601,10 +1616,10 @@ function npRepPdf(){
   sec('Key findings',s=>{const l=d.findings.flatMap(n=>doc.splitTextToSize('- '+n,W-28));doc.setFontSize(9.5);doc.setTextColor(40);doc.text(l,14,s+3);doc.lastAutoTable={finalY:s+3+l.length*4.4}});
   sec('1. Summary - what was converted',s=>doc.autoTable({...opt,startY:s,head:[['Indicator','Value']],body:npKpiRows(d),columnStyles:{0:{cellWidth:110}},tableWidth:170}));
   sec('2. Patient status of the converted cases',s=>doc.autoTable({...opt,startY:s,head:[['Status','Cases','% of converted','Visited']],body:d.status.map(o=>[o.k,npNA(d,o.n),npNA(d,o.pct+'%'),o.visited]),tableWidth:140}));
-  sec('3. Services done for the visited patients (P/D)',s=>d.perf?doc.autoTable({...opt,startY:s,head:[['Service','Patients served','Planned (P)','Done (D)','% done']],body:d.svc.map(o=>[o.k,o.n,o.p,o.d,o.pct+'%']),tableWidth:160}):(doc.text('Load the performance report to include the services.',14,s+4),doc.lastAutoTable={finalY:s+6}));
-  [['4. By doctor',d.groups.doctor],['5. By city',d.groups.city],['6. By project',d.groups.project]].forEach(([t,g])=>sec(t,s=>doc.autoTable({...opt,startY:s,head:[npGrpHead],body:npGrpRows(d,g),margin:{left:14,right:14}})));
-  doc.addPage();doc.lastAutoTable=null;y=14;doc.setFontSize(12);doc.setTextColor(22,78,131);doc.text(`7. Visited cases and the services done for each (${d.cases.length})`,14,y);
-  doc.autoTable({...opt,startY:y+3,head:[npCaseHead],body:npCaseRows(d),columnStyles:{7:{cellWidth:90}},margin:{left:14,right:14}});
+  sec('3. Not visited cases ('+d.notVisitedList.length+')',s=>d.notVisitedList.length?doc.autoTable({...opt,startY:s,head:[['PTID','Month','Doctor','Project','City','Status','Explanation']],body:d.notVisitedList.map(c=>[c.ptid,c.month,c.doctor,c.project,c.city,c.status,c.explanation]),columnStyles:{6:{cellWidth:110}},margin:{left:14,right:14}}):(doc.text('Every opened file was visited.',14,s+4),doc.lastAutoTable={finalY:s+6}));
+  sec('4. Visited patients - services done (P/D)',s=>d.perf?doc.autoTable({...opt,startY:s,head:[['Service','Patients served','Planned (P)','Done (D)','% done']],body:d.svc.map(o=>[o.k,o.n,o.p,o.d,o.pct+'%']),tableWidth:160}):(doc.text('Load the performance report to include the services.',14,s+4),doc.lastAutoTable={finalY:s+6}));
+  sec('Visited cases and the services done for each ('+d.cases.length+')',s=>doc.autoTable({...opt,startY:s,head:[npCaseHead],body:npCaseRows(d),columnStyles:{7:{cellWidth:90}},margin:{left:14,right:14}}));
+  [['5. By doctor',d.groups.doctor],['6. By city',d.groups.city],['7. By project',d.groups.project]].forEach(([t,g])=>sec(t,s=>doc.autoTable({...opt,startY:s,head:[npGrpHead],body:npGrpRows(d,g),margin:{left:14,right:14}})));
   doc.addPage();y=14;doc.setFontSize(12);doc.setTextColor(22,78,131);doc.text(`8. Case-by-case explanation of all converted cases (${d.explained.length})`,14,y);
   doc.autoTable({...opt,startY:y+3,head:[['PTID','Month','Doctor','Project','City','Status','Visits','Services done (D/P)','Explanation']],body:d.explained.map(c=>[c.ptid,c.month,c.doctor,c.project,c.city,c.status,c.visits,c.services,c.explanation]),columnStyles:{7:{cellWidth:34},8:{cellWidth:90}},margin:{left:14,right:14}});
   y=doc.lastAutoTable.finalY+8;if(y>185){doc.addPage();y=16}doc.setFontSize(10);doc.setTextColor(60);d.notes.forEach(n=>{const l=doc.splitTextToSize('- '+n,W-28);doc.text(l,14,y);y+=l.length*4.5});
@@ -1619,9 +1634,10 @@ function npRepExcel(){
   sheet('Key findings',['Finding'],d.findings.map(n=>[n]),[150]);
   sheet('Summary',['Indicator','Value'],npKpiRows(d),[58,26]);
   sheet('Status',['Status','Cases','% of converted','Visited'],d.status.map(o=>[o.k,npNA(d,o.n),npNA(d,o.pct),o.visited]));
+  sheet('Not visited',['PTID','Opened','Month','Doctor','Project','City','Company','Status','Services done (D/P)','Explanation'],d.explained.filter(c=>c.visited==='No').map(c=>[c.ptid,c.opened,c.month,c.doctor,c.project,c.city,c.company,c.status,c.services,c.explanation]),[12,12,10,26,16,10,22,12,28,110]);
   if(d.perf)sheet('Services P-D',['Service','Patients served','Planned (P)','Done (D)','% done'],d.svc.map(o=>[o.k,o.n,o.p,o.d,o.pct]));
-  sheet('By Doctor',npGrpHead,npGrpRows(d,d.groups.doctor));sheet('By City',npGrpHead,npGrpRows(d,d.groups.city));sheet('By Project',npGrpHead,npGrpRows(d,d.groups.project));
   sheet('Visited cases',[...npCaseHead.slice(0,8),'Total D','Total P',...NP_SVC.flatMap(k=>[k+' D',k+' P'])],d.cases.map(c=>[c.ptid,c.opened,c.doctor,c.project,c.city,c.status,c.visits,c.services,c.totD,c.totP,...NP_SVC.flatMap(k=>[c.svc[k]?c.svc[k].d:0,c.svc[k]?c.svc[k].p:0])]),[12,12,26,18,12,12,8,40,9,9]);
+  sheet('By Doctor',npGrpHead,npGrpRows(d,d.groups.doctor));sheet('By City',npGrpHead,npGrpRows(d,d.groups.city));sheet('By Project',npGrpHead,npGrpRows(d,d.groups.project));
   sheet('All converted cases',['PTID','Opened','Month','Doctor','Project','City','Company','Status','Referral','Visits','Visited','Total D','Total P'],d.all.map(c=>[c.ptid,c.opened,c.month,c.doctor,c.project,c.city,c.company,c.status,c.referral,c.visits,c.visited,c.totD,c.totP]),[12,12,10,26,18,12,22,12,9,8,8,9,9]);
   sheet('Case explanations',['PTID','Opened','Month','Doctor','Project','City','Company','Status','Visits','Visited','Services done (D/P)','Explanation'],d.explained.map(c=>[c.ptid,c.opened,c.month,c.doctor,c.project,c.city,c.company,c.status,c.visits,c.visited,c.services,c.explanation]),[12,12,10,26,16,10,22,12,8,8,34,110]);
   sheet('Notes',['Note'],d.notes.map(n=>[n]),[140]);
@@ -1641,6 +1657,8 @@ async function npRepPpt(){
   // status
   s=slide('Patient status of the converted cases');const st=d.status.filter(o=>o.n>0);tbl(s,['Status','Cases','% of converted','Visited'],d.status.map(o=>[o.k,npNA(d,o.n),npNA(d,o.pct+'%'),o.visited]),{w:6,x:0.4,colW:[2,1.3,1.5,1.2],rowH:0.4,fs:13});
   if(st.length)s.addChart(P.charts.DOUGHNUT,[{name:'Status',labels:st.map(o=>o.k),values:st.map(o=>o.n)}],{x:6.8,y:1.1,w:6.1,h:5.6,showLegend:true,legendPos:'b',showPercent:true,dataLabelColor:'FFFFFF',chartColors:['16A34A','DC2626','D97706','0891B2','94A3B8'],legendFontSize:13});
+  {const per3=6,max3=6,n3=Math.min(max3,Math.ceil(d.notVisitedList.length/per3));for(let p=0;p<n3;p++){s=slide('Not visited cases ('+(p*per3+1)+'-'+Math.min(d.notVisitedList.length,(p+1)*per3)+' of '+d.notVisitedList.length+')');tbl(s,['PTID','Month','Status','Explanation'],d.notVisitedList.slice(p*per3,(p+1)*per3).map(c=>[c.ptid,c.month,c.status,c.explanation]),{colW:[0.9,0.9,1.0,9.7],fs:9,rowH:0.8})}
+  if(d.notVisitedList.length>per3*max3){s=slide('More not visited cases');s.addText((d.notVisitedList.length-per3*max3)+' more not visited cases are listed in the Excel / Word / PDF report.',{x:0.6,y:2,w:12,h:1,fontSize:20,color:GREY})}}
   // services
   s=slide('Visited patients — services done (P/D)');if(d.perf&&d.svc.length){s.addChart(P.charts.BAR,[{name:'Planned (P)',labels:d.svc.map(o=>o.k),values:d.svc.map(o=>o.p)},{name:'Done (D)',labels:d.svc.map(o=>o.k),values:d.svc.map(o=>o.d)}],{x:0.4,y:1.1,w:7.6,h:5.7,barDir:'col',barGrouping:'clustered',chartColors:['94A3B8',TEAL],showLegend:true,legendPos:'b',showValue:true,dataLabelFontSize:10,catAxisLabelFontSize:11});tbl(s,['Service','Patients','P','D','%'],d.svc.map(o=>[o.k,o.n,o.p,o.d,o.pct+'%']),{x:8.2,w:4.7,colW:[1.5,0.9,0.7,0.7,0.9],fs:11,rowH:0.28})}else s.addText('Load the performance report in the dashboard to include the services.',{x:0.6,y:2,w:12,h:1,fontSize:20,color:GREY});
   s.addText(`Visited: ${d.K.visited}   |   matched in report: ${d.K.matched}   |   no service done: ${npNA(d,d.K.visitedNoService)}`,{x:0.4,y:6.7,w:12.5,h:0.3,fontSize:12,color:'334155',fontFace:font});

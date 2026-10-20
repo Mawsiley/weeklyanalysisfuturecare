@@ -92,3 +92,6 @@ Each not-visited patient gets a note (a classification from an editable list + f
 
 ### New patients: files closed by status
 A not-visited patient whose file is already closed by its status (last action / status: Removed, Refused, Does not require service, Not applicable) is split from the "no justification" cases: the funnel has "open follow-up" and "closed by status" chips (clickable), the justification column shows "ملف مغلق بحالته", the explanation says the file should be confirmed and archived, the reports show both counts, and **no task is created for them** (SABIC rule, quick tasks, and the "no justification" rules skip closed files).
+
+### New patients: organised in tabs
+The 🆕 tab keeps the filters and the percentage chips (and the "patients under the filter" list) at the top, and splits the analysis into sub-tabs with counters: 📊 Summary · 🚫 Not visited (by Project, SABIC / Acute, notes classification, list with justification) · 📨 Tasks · ✅ Visited & services · 📈 Analysis (doctor / city / company / status / referral) · 🔎 Case explanations. The Word / PDF / Excel / PowerPoint reports follow the same order (summary → not visited → visited & services → doctor / city / project → case explanations).
