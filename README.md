@@ -89,3 +89,6 @@ Each not-visited patient gets a note (a classification from an editable list + f
 
 ### New patients: tasks for the active filter + automation (extension 1.8.0)
 ⚡ "Task for the active filter" (section ④): the cases of the active filter - page filters (month / doctor / city / Project) plus the open "patients under the filter" list - get a task with an editable recipient, title and message (`{NOTE}` carries the patient note). 📨 opens the extension window for review; ⚡ **Automation** opens it and, after you confirm inside the extension window, starts the run automatically (the extension's usual skip-already-sent settings apply). Both buttons also exist for the rules list. Automation needs extension 1.8.0+.
+
+### New patients: files closed by status
+A not-visited patient whose file is already closed by its status (last action / status: Removed, Refused, Does not require service, Not applicable) is split from the "no justification" cases: the funnel has "open follow-up" and "closed by status" chips (clickable), the justification column shows "ملف مغلق بحالته", the explanation says the file should be confirmed and archived, the reports show both counts, and **no task is created for them** (SABIC rule, quick tasks, and the "no justification" rules skip closed files).
