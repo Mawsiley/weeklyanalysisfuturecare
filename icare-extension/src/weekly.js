@@ -131,7 +131,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if(msg && msg.type === 'FCW_FETCH_PERFORMANCE'){
     if(!PAGE_ORIGINS.includes(from) && !fromExtensionPage(sender)) { sendResponse({ ok: false, code: 'FORBIDDEN_ORIGIN' }); return; }
     fetchPerformance(msg).then(async r => {
-      if(r.ok && r.rows.length) await recordFetch(r, 'manual');
+      if(r.ok && r.rows.length && !msg.noRecord) await recordFetch(r, 'manual'); // noRecord = comparison with older months: never replaces the local copy
       const { snap, vcand, ...rest } = r; // the snapshot stays inside the extension
       sendResponse(rest);
     });

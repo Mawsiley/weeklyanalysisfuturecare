@@ -30,7 +30,7 @@
     const m = e.data; if (!m || m.source !== 'fc-weekly' || !m.id) return;
     const reply = o => window.postMessage({ source: 'fc-weekly-ext', id: m.id, ...o }, location.origin);
     if (m.type === 'STATUS') reply(await toExt({ type: 'FCW_STATUS' }));
-    if (m.type === 'FETCH_PERFORMANCE') reply(await toExt({ type: 'FCW_FETCH_PERFORMANCE', month: m.month, cities: m.cities }));
+    if (m.type === 'FETCH_PERFORMANCE') reply(await toExt({ type: 'FCW_FETCH_PERFORMANCE', month: m.month, cities: m.cities, noRecord: m.noRecord === true }));
     if (m.type === 'SYNC_REPORT') reply(await toExt({ type: 'FCW_SYNC_REPORT', name: m.name, b64: b64(m.buffer) }));
     if (m.type === 'GET_REPORT') reply(await toExt({ type: 'FCW_GET_REPORT' }));
     if (m.type === 'FETCH_NEW') reply(await toExt({ type: 'FCW_FETCH_NEW' }));

@@ -38,7 +38,7 @@
         reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_SYNC_RULES', cfg: m.cfg && typeof m.cfg === 'object' ? m.cfg : null, at: Number(m.at) || 0 }));
       } else if(m.type === 'FETCH_PERFORMANCE'){
         const cities = Array.isArray(m.cities) ? m.cities.map(String).slice(0, 10) : [];
-        reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_FETCH_PERFORMANCE', month: String(m.month || ''), cities }));
+        reply(m.id, await chrome.runtime.sendMessage({ type: 'FCW_FETCH_PERFORMANCE', month: String(m.month || ''), cities, noRecord: m.noRecord === true }));
       }
     } catch(err){
       reply(m.id, { ok: false, code: 'EXTENSION_ERROR' });

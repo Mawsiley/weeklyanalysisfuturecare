@@ -1685,5 +1685,61 @@ async function npRepPpt(){
 {const p=$('p-newpts');p&&p.addEventListener('click',async e=>{const id=e.target.id,fn={npRepWord,npRepPdf,npRepExcel,npRepPpt}[id];if(!fn)return;const b=e.target,t=b.textContent;b.disabled=true;b.textContent='⏳';try{await fn()}catch(x){alert('تعذّر إنشاء التقرير: '+(x&&x.message||x))}b.disabled=false;b.textContent=t})}
 {const st=document.createElement('style');st.textContent='.npRep{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px;border:1px dashed #94a3b8;border-radius:12px}.npRep b{font-size:13px}';document.head.appendChild(st)}
 
+
+/* 📊 Services tab: the previous two months (pulled through the extension) next to the loaded month, with charts.
+   Same filters as the tab (doctor / branch / city / company / HARP / services); De-Active excluded like the tab itself. */
+const svcCmp={months:{},busy:false,msg:'',loaded:false};
+(()=>{try{const v=JSON.parse(sessionStorage.getItem('fc-svc-months')||'null');if(v&&typeof v==='object')svcCmp.months=v}catch{}})();
+const ymAdd=(ym,n)=>{const [y,m]=ym.split('-').map(Number),d=new Date(y,m-1+n,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
+const svcCurMonth=()=>{try{return String(reportPeriod().to).slice(0,7)}catch{return localToday().slice(0,7)}};
+const svcCompact=x=>({id:x.id,doctor:x.doctor,branch:x.branch,city:x.city,company:x.company,harp:x.harp,drP:x.drP,drD:x.drD,services:x.services});
+const SVC_ALL=['DR',...PLANS.map(p=>p.replace(/ P$/,''))];
+const svcFilterTest=()=>{const d=$('doctor').value,b=$('branch').value,c=$('city').value,co=$('company').value,h=$('harp').value,sv=selectedServices();return x=>(!d||x.doctor===d)&&(!b||x.branch===b)&&(!c||x.city===c)&&(!co||x.company===co)&&(!h||x.harp===h)&&(!sv.length||sv.some(s=>x.services[s]?.p>0||x.services[s]?.d>0))};
+const svcTotals=list=>{const o={};SVC_ALL.forEach(s=>{const P=x=>s==='DR'?x.drP:x.services[s].p,D=x=>s==='DR'?x.drD:x.services[s].d,z=list.filter(x=>P(x)||D(x));o[s]={n:z.length,p:sum(z,P),d:sum(z,D)}});return o};
+async function svcFetchMonths(){
+  if(!window.fcIcare){svcCmp.msg='⚠ إضافة FutureCare Weekly غير مثبتة — لا يمكن سحب الأشهر السابقة.';return renderSvcCmp()}
+  svcCmp.busy=true;const cur=svcCurMonth();
+  try{
+    for(const m of [ymAdd(cur,-1),ymAdd(cur,-2)]){
+      svcCmp.msg='⏳ جارٍ سحب شهر '+m+' من iCare… (قد يستغرق دقيقة)';renderSvcCmp();
+      const r=await window.fcIcare.ask('FETCH_PERFORMANCE',{month:m,cities:['Jeddah','Makkah','Yanbu'],noRecord:true});
+      if(!r||!r.ok||!r.rows||!r.rows.length||!r.headers){svcCmp.msg='⚠ تعذّر سحب شهر '+m+(r&&r.code?' ('+r.code+')':'')+(r&&r.ok&&!r.rows.length?' — لا توجد حالات':'');svcCmp.busy=false;return renderSvcCmp()}
+      svcCmp.months[m]=mapRows(r.rows.map(row=>Object.fromEntries(r.headers.map((h,i)=>[h,row[i]])))).filter(x=>!x.deactive).map(svcCompact);
+    }
+    try{sessionStorage.setItem('fc-svc-months',JSON.stringify(svcCmp.months))}catch{}
+    svcCmp.msg='✅ تم سحب الشهرين السابقين — '+new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});
+  }catch(e){svcCmp.msg='⚠ '+e.message}
+  svcCmp.busy=false;renderSvcCmp();
+}
+function renderSvcCmp(){
+  const host=$('svcCmp');if(!host)return;
+  const cur=svcCurMonth(),ms=[ymAdd(cur,-2),ymAdd(cur,-1),cur],ft=svcFilterTest();
+  const data={};ms.forEach(m=>{const src=m===cur?rows:svcCmp.months[m];data[m]=src&&src.length?src.filter(ft):null});
+  const T={};ms.forEach(m=>T[m]=data[m]?svcTotals(data[m]):null);
+  const have=ms.filter(m=>T[m]),svcs=SVC_ALL.filter(s=>ms.some(m=>T[m]&&(T[m][s].p||T[m][s].d)));
+  const pc=(d,p)=>p?Math.round(d/p*100):0,dl=(a,b)=>b==null?'':a===b?'<span class="muted">=</span>':'<span class="badge '+(a>b?'good':'warn')+'">'+(a>b?'+':'')+(a-b)+'</span>';
+  const note=ms.some(m=>m!==cur&&!T[m])?'<span class="npNote">الشهران السابقان غير محمَّلين — اضغط «سحب» لمقارنتهما.</span>':'';
+  let html='<div class="card"><h3>📊 مقارنة الخدمات بين الأشهر — '+ms.map(m=>m+(m===cur?' (الحالي)':'')).join(' · ')+'</h3><div class="npBar"><button class="btn green" id="svcFetch" '+(svcCmp.busy?'disabled':'')+'>📥 سحب الشهرين السابقين للمقارنة</button><span class="npNote" role="status">'+esc(svcCmp.msg)+'</span>'+note+'</div>';
+  if(!T[cur])html+='<div class="npNote">حمّل تقرير الشهر الحالي أولاً (أو اجلبه من iCare) ليظهر في المقارنة.</div></div>';
+  else if(have.length<2)html+='<div class="npNote">لا توجد بيانات أشهر سابقة بعد — اضغط «سحب الشهرين السابقين للمقارنة» (جدة ومكة وينبع).</div></div>';
+  else{
+    html+='<div class="grid2"><div><div style="height:300px"><canvas id="svcCmpC1"></canvas></div></div><div><div style="height:300px"><canvas id="svcCmpC2"></canvas></div></div></div>';
+    const head=['الخدمة',...ms.flatMap(m=>[m+' مخطط',m+' منفذ','%']),'تغير المنفذ عن السابق'];
+    html+='<div class="tableWrap">'+table(head,svcs.map(s=>{const prev=T[ms[1]]?T[ms[1]][s].d:null,c=T[cur][s].d;return'<tr><td class="name">'+s+'</td>'+ms.map(m=>T[m]?'<td>'+T[m][s].p+'</td><td><b>'+T[m][s].d+'</b></td><td>'+pc(T[m][s].d,T[m][s].p)+'%</td>':'<td>—</td><td>—</td><td>—</td>').join('')+'<td>'+dl(c,prev)+'</td></tr>'}))+'</div>';
+    html+='<p class="npNote">المخطط P والمنفذ D لكل خدمة (DR هي زيارات الطبيب) لمرضى '+have.map(m=>m+': '+data[m].length).join(' — ')+' (بدون De-Active، حسب الفلاتر الحالية). الأشهر السابقة لجدة ومكة وينبع.</p></div>';
+  }
+  host.innerHTML=html;
+  if(T[cur]&&have.length>=2&&typeof Chart!=='undefined'){
+    const col={[ms[0]]:'#94a3b8',[ms[1]]:'#3b82f6',[ms[2]]:'#0f766e'};
+    const mk=(id,key,label,fmt)=>{const c=$(id);if(!c)return;if(charts[id])try{charts[id].destroy()}catch{}charts[id]=new Chart(c,{type:'bar',data:{labels:svcs,datasets:have.map(m=>({label:m+(m===cur?' (الحالي)':''),data:svcs.map(s=>key(T[m][s])),backgroundColor:col[m]}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'},title:{display:true,text:label}},scales:{y:{beginAtZero:true,ticks:{callback:fmt}}}}})};
+    mk('svcCmpC1',t=>t.d,'الخدمات المنفذة (D)',v=>v);
+    mk('svcCmpC2',t=>pc(t.d,t.p),'نسبة التنفيذ % (منفذ ÷ مخطط)',v=>v+'%');
+  }
+}
+{const p=$('p-services'),old=$('serviceTable');if(p&&old&&!$('svcCmp')){old.insertAdjacentHTML('beforebegin','<div id="svcCmp"></div>');
+  p.addEventListener('click',e=>{if(e.target.id==='svcFetch')svcFetchMonths()});
+  const renderBeforeSvcCmp=render;render=function(){const out=renderBeforeSvcCmp.apply(this,arguments);try{renderSvcCmp()}catch(e){console.error(e)}return out};
+}}
+
 })();
 </script></body></html>
